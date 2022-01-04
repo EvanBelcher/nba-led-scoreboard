@@ -1,12 +1,14 @@
 # Imports
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from dateutil import parser
-from nba_api.live.nba.endpoints import boxscore, playbyplay, scoreboard
+from nba_api.live.nba.endpoints import playbyplay, scoreboard
 from nba_api.stats.static import teams
-from nba_api.stats.library.parameters import GameDate
+import os
 import pytz
+import time
 from nba_api.stats.endpoints.leaguestandings import LeagueStandings
-from IPython.display import Image
+from ratelimiter import RateLimiter
+
 
 NBA_TEAMS = teams.get_teams()
 
@@ -41,6 +43,8 @@ SLEEP_TIME = SLEEP_TIME or None
 WAKE_TIME = WAKE_TIME or None
 SLEEP_DAY = SLEEP_DAY or None
 WAKE_DAY = WAKE_DAY or None
+os.environ['TZ'] = TIMEZONE
+time.tzset()
 
 def get_game_datetime(game):
   return parser.parse(game["gameTimeUTC"]).replace(tzinfo=timezone.utc).astimezone(tz=pytz.timezone(TIMEZONE))
@@ -61,18 +65,11 @@ def game_has_ended(game):
 def game_is_live(game):
   return game_has_started(game) and not game_has_ended(game)
 
-def should_sleep():
-  pass
-
+@RateLimiter(max_calls=1, period=5)
 def get_games_for_today():
   return scoreboard.ScoreBoard().games.get_dict()
 
 # Get games for today
-import os, time
-os.environ['TZ'] = 'US/Eastern'
-
-
-
 f = "{gameId}: {awayTeam} vs. {homeTeam} @ {gameTimeLTZ}. {time} in Quarter {quarter}. Score: {awayTeamScore}-{homeTeamScore}"
 board = scoreboard.ScoreBoard()
 print(board.get_dict())

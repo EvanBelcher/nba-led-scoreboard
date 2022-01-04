@@ -1,6 +1,4 @@
-from datetime import date, datetime, timedelta, timezone
-from dateutil import parser
-import pytz
+from datetime import datetime, timedelta, timezone
 import threading
 import time
 
@@ -10,7 +8,8 @@ class DataCache(object):
 
   # Starts subscription on newly spawned thread
   def startSubscribeThread(self, varName, updateFunc, activeFunc, frequency, transformFunc=None, consumeFunc=None, startValue=None):
-    self[varName] = startValue
+    if startValue or not varName in self._data:
+      self[varName] = startValue
     thread = threading.Thread(name='Thread-%s'%varName, target=self._subscribeToValue, args=(varName, updateFunc, activeFunc, frequency), kwargs={'transformFunc': transformFunc, 'consumeFunc': consumeFunc})
     thread.start()
   
@@ -83,11 +82,11 @@ class DisplayManager(object):
         time.sleep(secondsToSleep + 30)
         self._sleepIfNecessary()
   
-  def _runScheduledActions(self):
+  def _runScheduledActions(self, *args):
     newActionList = list()
-    for actionDateTime, actionFunc in self.scheduledActions:
+    for actionDateTime, actionFunc, *args in self.scheduledActions:
       if datetime.now() > actionDateTime:
-        actionFunc()
+        actionFunc(*args)
       else:
         newActionList.append((actionDateTime, actionFunc))
     self.scheduledActions = newActionList
@@ -139,95 +138,3 @@ class Animation(Display):
 
   def addFrames(self, frameFuncs):
     self.frames.extend(frameFuncs)
-
-class NBADisplayManager(DisplayManager):
-  def __init__(self, favorite_teams):
-    super().__init__()
-    self.dataCache.startSubscribeThread("gamesToday", get_games_for_today, lambda: not should_sleep(), timedelta(minutes=5), startValue=[])
-    self.favorite_teams = favorite_teams
-
-  def createRgbMatrix(self):
-    pass
-  
-  def getDisplaysToShow(self):
-    board = scoreboard.ScoreBoard()
-    games = board.games.get_dict()
-    for game in self._getImportantGames(games):
-      if game_is_live(game):
-        return [LiveGame(game)]
-    return list(self._getIdleDisplays(self, games))
-
-  def _getIdleDisplays(self, games):
-    for game in games:
-      if not game_has_started(game):
-        yield BeforeGame(game)
-      elif game_has_ended(game):
-        yield AfterGame(game)
-      else:
-        yield LiveGame(game)
-    for standing in get_standings():
-      yield Standings(standing)
-
-  def _getImportantGames(self, games):
-    # print(self.favorite_teams)
-    importantGames = []
-    for game in games:
-      teamImportances = [self._getTeamImportance(team) for team in self._getTeams(game)]
-      # print(teamImportances)
-      if any(teamImportances):
-        minImportance = min(filter(lambda i: i is not None, teamImportances))
-        importantGames.append( {'importance': minImportance, 'game': game})
-    
-    importantGames.sort(key = lambda entry: parser.parse(entry['game']['gameTimeUTC']))
-    importantGames.sort(key = lambda entry: entry['importance'])
-    return list(map(lambda entry: entry['game'], importantGames))
-
-
-  def _getTeamImportance(self, team):
-    if team not in self.favorite_teams:
-      return None
-    return self.favorite_teams.index(team) + 1
-
-  def _getTeams(self, game):
-    awayTeam = teams.find_team_by_abbreviation(game['awayTeam']['teamTricode'])
-    homeTeam = teams.find_team_by_abbreviation(game['homeTeam']['teamTricode'])
-    return [awayTeam, homeTeam]
-
-dm = NBADisplayManager(FAVORITE_TEAMS)
-board = scoreboard.ScoreBoard()
-games = board.games.get_dict()
-print(games)
-print('\n')
-print(dm._getImportantGames(games))
-
-class BeforeGame(Display):
-  def __init__(self, game):
-    super().__init__()
-    self.game = game
-
-  def show(self, matrix):
-    pass
-
-class AfterGame(Display):
-  def __init__(self, game):
-    super().__init__()
-    self.game = game
-
-  def show(self, matrix):
-    pass
-
-class LiveGame(Display):
-  def __init__(self, game):
-    super().__init__()
-    self.game = game
-
-  def show(self, matrix):
-    pass
-
-class Standings(Display):
-  def __init__(self, standing):
-    super().__init__()
-    self.standing = standing
-
-  def show(self, matrix):
-    pass
