@@ -46,7 +46,7 @@ class DisplayManager(object):
       self._sleepIfNecessary()
       self._runScheduledActions()
       for display, displayTime in self.getDisplaysToShow():
-        display.show()
+        display.show(self.rgbMatrix)
         time.sleep(displayTime)
 
   def createRgbMatrix(self):
@@ -113,16 +113,15 @@ class DisplayManager(object):
     self.scheduledActions.append((actionDateTime, actionFunc))
 
 class Display(object):
-  def __init__(self, width, height):
-    self.width = width
-    self.height = height
+  def __init__(self):
+    pass
   
   def show(self, matrix):
     raise NotImplementedError("Subclasses must implement show()")
 
 class Animation(Display):
-  def __init__(self, width, height, framerate=30):
-    super().__init__(width, height)
+  def __init__(self, framerate=30):
+    super().__init__()
     self.framerate = framerate
     self.frames = list()
   

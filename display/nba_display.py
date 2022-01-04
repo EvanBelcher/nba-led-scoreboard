@@ -1,5 +1,5 @@
 from datetime import timedelta
-from display.display import Display, DisplayManager 
+from display import Display, DisplayManager 
 from dateutil import parser
 from data.nba_data import *
 from PIL import Image, ImageColor, ImageDraw, ImageFont, ImageShow
