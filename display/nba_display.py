@@ -83,9 +83,10 @@ class BeforeGame(Display):
   def show(self, matrix):
     image = Image.new("RGB", (matrix.width, matrix.height))
     draw = ImageDraw.Draw(image)
-    draw.text(10, 10, 'hello world', fill=ImageColor.getrgb('#f00'), font=ImageFont.FreeTypeFont())
+    draw.text((10, 10), 'hello world', fill=ImageColor.getrgb('#f00'))
     # matrix.setImage(image, 0, 0)
-    ImageShow.show(image)
+    # image.show()
+    self._debugImage(image)
 
     time.sleep(10)
 

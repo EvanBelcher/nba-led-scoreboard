@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import threading
 import time
+from PIL import Image
 
 class DataCache(object):
   def __init__(self):
@@ -118,6 +119,10 @@ class Display(object):
   
   def show(self, matrix):
     raise NotImplementedError("Subclasses must implement show()")
+
+  def _debugImage(self, image):
+    bigImg = image.resize((image.width*10, image.height*10))
+    bigImg.show()
 
 class Animation(Display):
   def __init__(self, framerate=30):
