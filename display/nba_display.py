@@ -1,7 +1,7 @@
-from datetime import timedelta
-from display import Display, DisplayManager 
-from dateutil import parser
 from data.nba_data import *
+from datetime import timedelta
+from dateutil import parser
+from display.display import Display, DisplayManager 
 from PIL import Image, ImageColor, ImageDraw, ImageFont, ImageShow
 
 class NBADisplayManager(DisplayManager):
@@ -48,7 +48,6 @@ class NBADisplayManager(DisplayManager):
     importantGames = []
     for game in games:
       teamImportances = [self._getTeamImportance(team) for team in self._getTeams(game)]
-      # print(teamImportances)
       if any(teamImportances):
         minImportance = min(filter(lambda i: i is not None, teamImportances))
         importantGames.append( {'importance': minImportance, 'game': game})
@@ -83,9 +82,7 @@ class BeforeGame(Display):
   def show(self, matrix):
     image = Image.new("RGB", (matrix.width, matrix.height))
     draw = ImageDraw.Draw(image)
-    draw.text((10, 10), 'hello world', fill=ImageColor.getrgb('#f00'))
-    # matrix.setImage(image, 0, 0)
-    # image.show()
+    draw.text((1, 1), 'hello\nworld', fill=ImageColor.getrgb('#f00'))
     self._debugImage(image)
 
     time.sleep(10)
@@ -113,10 +110,3 @@ class Standings(Display):
 
   def show(self, matrix):
     time.sleep(7)
-
-b = BeforeGame(None)
-class Matrix(object):
-  def __init__(self):
-    self.width = 64
-    self.height = 32
-b.show(Matrix())

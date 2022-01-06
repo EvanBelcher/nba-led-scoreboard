@@ -1,13 +1,13 @@
-# Imports
 from datetime import datetime, timedelta, timezone
 from dateutil import parser
 from nba_api.live.nba.endpoints import playbyplay, scoreboard
+from nba_api.stats.endpoints.leaguestandings import LeagueStandings
 from nba_api.stats.static import teams
+from ratelimiter import RateLimiter
+import logging
 import os
 import pytz
 import time
-from nba_api.stats.endpoints.leaguestandings import LeagueStandings
-from ratelimiter import RateLimiter
 
 
 NBA_TEAMS = teams.get_teams()
@@ -24,7 +24,6 @@ WAKE_DAY = ''
 
 # Utility
 def find_team(keyword):
-  print(keyword)
   if teams.find_team_by_abbreviation(keyword):
     return teams.find_team_by_abbreviation(keyword)
   if teams.find_teams_by_full_name(keyword):
@@ -67,19 +66,15 @@ def game_is_live(game):
 
 @RateLimiter(max_calls=1, period=5)
 def get_games_for_today():
-  return scoreboard.ScoreBoard().games.get_dict()
-
-# Get games for today
-f = "{gameId}: {awayTeam} vs. {homeTeam} @ {gameTimeLTZ}. {time} in Quarter {quarter}. Score: {awayTeamScore}-{homeTeamScore}"
-board = scoreboard.ScoreBoard()
-print(board.get_dict())
-print("ScoreBoardDate: " + board.score_board_date)
-games = board.games.get_dict()
-print(games)
-for game in games:
-  gameTimeLTZ = parser.parse(game["gameTimeUTC"]).replace(tzinfo=timezone.utc).astimezone(tz=pytz.timezone('US/Eastern'))
-  print(f.format(gameId=game['gameId'], awayTeam=game['awayTeam']['teamName'], homeTeam=game['homeTeam']['teamName'], gameTimeLTZ=gameTimeLTZ, time=game['gameClock'], quarter=game['period'], awayTeamScore=game['awayTeam']['score'], homeTeamScore=game['homeTeam']['score']))
-
+  games = scoreboard.ScoreBoard().games.get_dict()
+  
+  gameFormat = "{gameId}: {awayTeam} vs. {homeTeam} @ {gameTimeLTZ}. {time} in Quarter {quarter}. Score: {awayTeamScore}-{homeTeamScore}"
+  for game in games:
+    logging.debug(f.format(gameId=game['gameId'], awayTeam=game['awayTeam']['teamName'], homeTeam=game['homeTeam']['teamName'], gameTimeLTZ=gameTimeLTZ, time=game['gameClock'], quarter=game['period'], awayTeamScore=game['awayTeam']['score'], homeTeamScore=game['homeTeam']['score']))
+  
+  return games
+  
+@RateLimiter(max_calls=1, period=5)
 def get_standings():
   response = LeagueStandings()
 
@@ -98,10 +93,6 @@ def get_standings():
 
   return rankedStandings
 
-print(get_standings())
-
 def get_logo_url(team_id):
   team = teams.find_team_name_by_id(team_id)
   return 'http://i.cdn.turner.com/nba/nba/.element/img/1.0/teamsites/logos/teamlogos_500x500/%s.png' % team['abbreviation'].lower()
-
-get_logo_url(1610612741)

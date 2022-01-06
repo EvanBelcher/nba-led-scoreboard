@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
+from PIL import Image
 import threading
 import time
-from PIL import Image
 
 class DataCache(object):
   def __init__(self):
