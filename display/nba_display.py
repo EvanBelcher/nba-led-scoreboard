@@ -4,20 +4,30 @@ from dateutil import parser
 from display.display import Display, DisplayManager 
 from PIL import Image, ImageColor, ImageDraw, ImageFont, ImageShow
 from rgbmatrix import RGBMatrix, RGBMatrixOptions
+import tkinter as tk
 
 class NBADisplayManager(DisplayManager):
-  def __init__(self, favorite_teams):
+  def __init__(self, favorite_teams, width=64, height=32):
     super().__init__()
     self.data_cache.start_subscribe_thread("gamesToday", self._fetch_games, lambda: True, timedelta(minutes=5), start_value=[])
     self.data_cache.start_subscribe_thread("important_gamesToday", self._schedule_live_updates_for_important_games, lambda: True, timedelta(days=1))
     self.favorite_teams = favorite_teams
+    self.width = width
+    self.height = height
 
   def create_rgb_matrix(self):
     options = RGBMatrixOptions()
-    options.rows = 32
-    options.cols = 64
+    options.rows = self.height
+    options.cols = self.width
     options.hardware_mapping = 'adafruit-hat'
     return RGBMatrix(options = options)
+    
+  def create_debug_label(self):
+    debug_tk = tk.Tk()
+    debug_tk.title('Debug display')
+    debug_tk.geometry('%dx%d'%(self.width*10, self.height*10))
+    debug_label = tk.Label(debug_tk)
+    return debug_label
   
   def get_displays_to_show(self):
     for game in self._get_important_games(self.data_cache['gamesToday']):
@@ -78,13 +88,17 @@ class BeforeGame(Display):
     super().__init__()
     self.game = game
 
-  def show(self, matrix):
+  def show(self, matrix, debug_label):
     image = Image.new("RGB", (matrix.width, matrix.height))
     draw = ImageDraw.Draw(image)
     draw.text((1, 1), 'hello\nworld', fill=ImageColor.getrgb('#f00'))
-    self._debug_image(image)
-
-    time.sleep(10)
+    self._debug_image(image, debug_label)
+    time.sleep(5)
+    image = Image.new("RGB", (matrix.width, matrix.height))
+    draw = ImageDraw.Draw(image)
+    draw.text((1, 1), 'hello\nworld', fill=ImageColor.getrgb('#0f0'))
+    self._debug_image(image, debug_label)
+    time.sleep(5)
 
 class AfterGame(Display):
   def __init__(self, game):

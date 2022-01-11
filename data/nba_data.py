@@ -10,13 +10,13 @@ import pytz
 import time
 import config
 
-FAVORITE_TEAMS = [find_team(team) for team in FAVORITE_TEAMS if team is not None]
+FAVORITE_TEAMS = [find_team(team) for team in config.FAVORITE_TEAMS if team is not None]
 FAVORITE_TEAM_NAMES = [team['nickname'] for team in FAVORITE_TEAMS]
-SLEEP_TIME = SLEEP_TIME or None
-WAKE_TIME = WAKE_TIME or None
-SLEEP_DAY = SLEEP_DAY or None
-WAKE_DAY = WAKE_DAY or None
-os.environ['TZ'] = TIMEZONE if TIMEZONE in pytz.all_timezones else 'UTC'
+SLEEP_TIME = config.SLEEP_TIME or None
+WAKE_TIME = config.WAKE_TIME or None
+SLEEP_DAY = config.SLEEP_DAY or None
+WAKE_DAY = config.WAKE_DAY or None
+os.environ['TZ'] = config.TIMEZONE if config.TIMEZONE in pytz.all_timezones else 'UTC'
 time.tzset()
 
 def find_team(keyword):

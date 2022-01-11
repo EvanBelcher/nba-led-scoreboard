@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta, timezone
-from PIL import Image
+from PIL import Image, ImageTk
 import threading
 import time
+import tkinter as tk
 
 class DataCache(object):
   def __init__(self):
@@ -52,6 +53,9 @@ class DisplayManager(object):
 
   def create_rgb_matrix(self):
     raise NotImplementedError("create_rgb_matrix must be implemented by the subclass")
+    
+  def create_debug_label(self):
+    raise NotImplementedError("create_debug_label must be implemented by the subclass")
 
   def get_displays_to_show():
     raise NotImplementedError("get_displays_to_show must be implemented by the subclass")
@@ -117,12 +121,18 @@ class Display(object):
   def __init__(self):
     pass
   
-  def show(self, matrix):
+  def show(self, matrix, debug_label):
     raise NotImplementedError("Subclasses must implement show()")
-
-  def _debug_image(self, image):
+  
+  def _debug_image(self, image, debug_label):
     big_img = image.resize((image.width*10, image.height*10))
-    big_img.show()
+    photo = ImageTk.PhotoImage(big_img)
+    debug_label.config(image=photo)
+    debug_label.image = photo # keep a reference
+    debug_label.pack()
+    
+    debug_label.master.update_idletasks()
+    debug_label.master.update()
 
 class Animation(Display):
   def __init__(self, framerate=30):
@@ -130,11 +140,11 @@ class Animation(Display):
     self.framerate = framerate
     self.frames = list()
   
-  def show(self, matrix):
+  def show(self, matrix, debug_tk):
     if len(self.frames) == 0:
       raise NotImplementedError("Sublclasses must define at least one frame")
     for frame_func in self.frames:
-      frame_func()
+      frame_func(matrix, debug_tk)
       time.sleep(1/self.framerate)
 
   def add_frame(self, frame_func):
