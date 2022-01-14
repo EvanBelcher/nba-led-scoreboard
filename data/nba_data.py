@@ -1,14 +1,17 @@
 from datetime import datetime, timedelta, timezone
 from dateutil import parser
+from functools import lru_cache
 from nba_api.live.nba.endpoints import playbyplay, scoreboard
 from nba_api.stats.endpoints.leaguestandings import LeagueStandings
 from nba_api.stats.static import teams
 from ratelimiter import RateLimiter
+import config
 import logging
 import os
 import pytz
+import requests
 import time
-import config
+
 
 FAVORITE_TEAMS = [find_team(team) for team in config.FAVORITE_TEAMS if team is not None]
 FAVORITE_TEAM_NAMES = [team['nickname'] for team in FAVORITE_TEAMS]
@@ -18,6 +21,7 @@ SLEEP_DAY = config.SLEEP_DAY or None
 WAKE_DAY = config.WAKE_DAY or None
 os.environ['TZ'] = config.TIMEZONE if config.TIMEZONE in pytz.all_timezones else 'UTC'
 time.tzset()
+
 
 def find_team(keyword):
   if not keyword:
@@ -36,27 +40,73 @@ def find_team(keyword):
 
   return None
 
+
 def get_game_datetime(game):
   return parser.parse(game["gameTimeUTC"]).replace(tzinfo=timezone.utc).astimezone(tz=pytz.timezone(TIMEZONE))
+
 
 def game_has_started(game):
   return datetime.now(tz=pytz.timezone(TIMEZONE)) < get_game_datetime(game)
 
-def game_has_ended(game):
-  if datetime.now(tz=pytz.timezone(TIMEZONE)) > get_game_datetime(game) + timedelta(hours=4):
-    # Game started 4 hours ago. It must be over.
-    return True
-  pbp = playbyplay.PlayByPlay(game['gameId'])
-  if any(action['actionType']=='game' for action in pbp.get_dict()['game']['actions']):
-    # Game has ended
-    return True
-  return False
 
 def game_is_live(game):
   return game_has_started(game) and not game_has_ended(game)
 
+
+def get_logo_url(team_id):
+  team = teams.find_team_name_by_id(team_id)
+  return 'http://i.cdn.turner.com/nba/nba/.element/img/1.0/teamsites/logos/teamlogos_500x500/%s.png' % team['abbreviation'].lower()
+
+  
+def get_important_games(favorite_teams):
+  important_games = []
+  for game in get_games_for_today():
+    team_importances = [_get_team_importance(team, favorite_teams) for team in get_teams_from_game(game)]
+    if any(team_importances):
+      min_importance = min(filter(lambda i: i is not None, team_importances))
+      important_games.append( {'importance': min_importance, 'game': game})
+  
+  important_games.sort(key = lambda entry: parser.parse(entry['game']['gameTimeUTC']))
+  important_games.sort(key = lambda entry: entry['importance'])
+  return list(map(lambda entry: entry['game'], important_games))
+
+
+def _get_team_importance(team, favorite_teams):
+  if team not in favorite_teams:
+    return None
+  return favorite_teams.index(team) + 1
+
+
+def get_teams_from_game(game):
+  away_team = teams.find_team_by_abbreviation(game['awayTeam']['teamTricode'])
+  home_team = teams.find_team_by_abbreviation(game['homeTeam']['teamTricode'])
+  return [away_team, home_team]
+
+
+# Functions that make url requests
+
+
+@lru_cache(maxsize=30)
 @RateLimiter(max_calls=1, period=5)
-def get_games_for_today():
+def _game_has_ended(game, ttl_hash):
+  if datetime.now(tz=pytz.timezone(TIMEZONE)) > get_game_datetime(game) + timedelta(hours=4):
+    # Game started 4 hours ago. It must be over.
+    return True
+  if any(action['actionType']=='game' for action in get_playbyplay_for_game(game)['game']['actions']):
+    # Game has ended
+    return True
+  return False
+
+
+def game_has_ended(game, cache_secs=60*10, cache_override=False):
+  if cache_override:
+    return _game_has_ended(game, -time.time())
+  return _game_has_ended(game, time.time() // cache_secs)
+
+
+@lru_cache(maxsize=1)
+@RateLimiter(max_calls=1, period=5)
+def _get_games_for_today(ttl_hash):
   games = scoreboard.ScoreBoard().games.get_dict()
   
   game_format = '{gameId}: {awayTeam} vs. {homeTeam} @ {gameTimeLTZ}. {time} in Quarter {quarter}. Score: {awayTeamScore}-{homeTeamScore}'
@@ -64,9 +114,27 @@ def get_games_for_today():
     logging.debug(game_format.format(gameId=game['gameId'], awayTeam=game['awayTeam']['teamName'], homeTeam=game['homeTeam']['teamName'], gameTimeLTZ=get_game_datetime(game), time=game['gameClock'], quarter=game['period'], awayTeamScore=game['awayTeam']['score'], homeTeamScore=game['homeTeam']['score']))
   
   return games
-  
+
+def get_games_for_today(cache_secs=60*10, cache_override=False):
+  if cache_override:
+    return _get_games_for_today(-time.time())
+  return _get_games_for_today(time.time() // cache_secs)
+
+
+@lru_cache(maxsize=10)
+@RateLimiter(max_calls=1, period 5)
+def _get_playbyplay_for_game(game, ttl_hash):
+  return playbyplay.PlayByPlay(game['gameId']).get_dict()
+
+def get_playbyplay_for_game(game, cache_secs=5, cache_override=False):
+  if cache_override:
+    return _get_playbyplay_for_game(game, -time.time())
+  return _get_playbyplay_for_game(game, time.time() // cache_secs)
+
+
+@lru_cache(maxsize=1)
 @RateLimiter(max_calls=1, period=5)
-def get_standings():
+def _get_standings(ttl_hash):
   response = LeagueStandings()
 
   standings = list()
@@ -84,6 +152,22 @@ def get_standings():
 
   return rankedStandings
 
-def get_logo_url(team_id):
-  team = teams.find_team_name_by_id(team_id)
-  return 'http://i.cdn.turner.com/nba/nba/.element/img/1.0/teamsites/logos/teamlogos_500x500/%s.png' % team['abbreviation'].lower()
+def get_standings(cache_secs=60*10, cache_override=False):
+  if cache_override:
+    return _get_standings(-time.time())
+  return _get_standings(time.time() // cache_secs)
+
+
+@lru_cache(maxsize=30)
+@RateLimiter(max_calls=5, period=10)
+def _get_team_logo(team_id, ttl_hash, width=64, height=32):
+  url = get_logo_url(team_id)
+  image_response = requests.get(url, stream=True)
+  img = Image.open(image_response.raw)
+  img.thumbnail((width, height), resample=Image.LANCZOS)
+  return img
+
+def get_team_logo(team_id, width=64, height=32, cache_secs=60*60*24*30, cache_override=False):
+  if cache_override:
+    return _get_team_logo(team_id, -time.time(), width=width, height=height)
+  return _get_team_logo(team_id, time.time() // cache_secs, width=width, height=height)

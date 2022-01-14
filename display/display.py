@@ -4,39 +4,10 @@ import threading
 import time
 import tkinter as tk
 
-class DataCache(object):
-  def __init__(self):
-    self._data = dict()
-
-  # Starts subscription on newly spawned thread
-  def start_subscribe_thread(self, var_name, update_func, active_func, frequency, transform_func=None, consume_func=None, start_value=None):
-    if start_value or not var_name in self._data:
-      self[var_name] = start_value
-    thread = threading.Thread(name='Thread-%s'%var_name, target=self._subscribe_to_value, args=(var_name, update_func, active_func, frequency), kwargs={'transform_func': transform_func, 'consume_func': consume_func})
-    thread.start()
-  
-  # Subscribes on the current thread
-  def _subscribe_to_value(self, var_name, update_func, active_func, frequency, transform_func=None, consume_func=None):
-    while active_func():
-      self.update_value(var_name, update_func, transform_func=transform_func, consume_func=consume_func)
-      time.sleep(frequency.total_seconds())
-
-  def update_value(self, var_name, update_func, transform_func=None, consume_func=None):
-    self[var_name] = transform_func(update_func()) if transform_func else update_func()
-    if consume_func:
-      consume_func(self[var_name])
-
-  def __getitem__(self, key):
-    return self._data[key]
-  
-  def __setitem__(self, key, value):
-    self._data[key] = value
-
 class DisplayManager(object):
   _SECONDS_IN_DAY = 86400
 
   def __init__(self):
-    self.data_cache = DataCache()
     self.scheduled_actions = []
     self.start_time, self.stop_time = None, None
     self.start_day, self.stop_day = None, None
@@ -47,9 +18,8 @@ class DisplayManager(object):
     while True:
       self._sleep_if_necessary()
       self._run_scheduled_actions()
-      for display, display_time in self.get_displays_to_show():
+      for display in self.get_displays_to_show():
         display.show(self.rgb_matrix)
-        time.sleep(display_time)
 
   def create_rgb_matrix(self):
     raise NotImplementedError("create_rgb_matrix must be implemented by the subclass")
