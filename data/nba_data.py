@@ -122,7 +122,7 @@ def get_games_for_today(cache_secs=60*10, cache_override=False):
 
 
 @lru_cache(maxsize=10)
-@RateLimiter(max_calls=1, period 5)
+@RateLimiter(max_calls=1, period=5)
 def _get_playbyplay_for_game(game, ttl_hash):
   return playbyplay.PlayByPlay(game['gameId']).get_dict()
 
