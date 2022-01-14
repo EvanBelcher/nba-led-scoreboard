@@ -54,14 +54,12 @@ class BeforeGame(Display):
   def show(self, matrix, debug_label):
     image = Image.new("RGB", (matrix.width, matrix.height))
     draw = ImageDraw.Draw(image)
-    draw.text((1, 1), 'hello\nworld', fill=ImageColor.getrgb('#f00'))
+    teams = get_teams_from_game(self.game)
+    logos = [get_team_logo(find_team(team_abb)['id']) for team_abb in teams]
+    image.paste(logos[0], (0, 0))
+    image.paste(logos[1], (32, 0))
     self._debug_image(image, debug_label)
-    time.sleep(5)
-    image = Image.new("RGB", (matrix.width, matrix.height))
-    draw = ImageDraw.Draw(image)
-    draw.text((1, 1), 'hello\nworld', fill=ImageColor.getrgb('#0f0'))
-    self._debug_image(image, debug_label)
-    time.sleep(5)
+    time.sleep(10)
 
 class AfterGame(Display):
   def __init__(self, game):

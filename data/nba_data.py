@@ -160,14 +160,14 @@ def get_standings(cache_secs=60*10, cache_override=False):
 
 @lru_cache(maxsize=30)
 @RateLimiter(max_calls=5, period=10)
-def _get_team_logo(team_id, ttl_hash, width=64, height=32):
+def _get_team_logo(team_id, ttl_hash, width=32, height=32):
   url = get_logo_url(team_id)
   image_response = requests.get(url, stream=True)
   img = Image.open(image_response.raw)
   img.thumbnail((width, height), resample=Image.LANCZOS)
   return img
 
-def get_team_logo(team_id, width=64, height=32, cache_secs=60*60*24*30, cache_override=False):
+def get_team_logo(team_id, width=32, height=32, cache_secs=60*60*24*30, cache_override=False):
   if cache_override:
     return _get_team_logo(team_id, -time.time(), width=width, height=height)
   return _get_team_logo(team_id, time.time() // cache_secs, width=width, height=height)
