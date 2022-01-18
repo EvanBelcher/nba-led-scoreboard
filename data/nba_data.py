@@ -99,10 +99,10 @@ def _game_has_ended(game, ttl_hash):
   return False
 
 
-def game_has_ended(game, cache_secs=60*10, cache_override=False):
+def game_has_ended(game, cache_time=timedelta(minutes=10), cache_override=False):
   if cache_override:
     return _game_has_ended(game, -time.time())
-  return _game_has_ended(game, time.time() // cache_secs)
+  return _game_has_ended(game, time.time() // cache_time.total_seconds())
 
 
 @lru_cache(maxsize=1)
@@ -116,10 +116,10 @@ def _get_games_for_today(ttl_hash):
   
   return games
 
-def get_games_for_today(cache_secs=60*10, cache_override=False):
+def get_games_for_today(cache_time=timedelta(minutes=10), cache_override=False):
   if cache_override:
     return _get_games_for_today(-time.time())
-  return _get_games_for_today(time.time() // cache_secs)
+  return _get_games_for_today(time.time() // cache_time.total_seconds())
 
 
 @lru_cache(maxsize=10)
@@ -127,10 +127,10 @@ def get_games_for_today(cache_secs=60*10, cache_override=False):
 def _get_playbyplay_for_game(game, ttl_hash):
   return playbyplay.PlayByPlay(game['gameId']).get_dict()
 
-def get_playbyplay_for_game(game, cache_secs=5, cache_override=False):
+def get_playbyplay_for_game(game, cache_time=timedelta(seconds=5), cache_override=False):
   if cache_override:
     return _get_playbyplay_for_game(game, -time.time())
-  return _get_playbyplay_for_game(game, time.time() // cache_secs)
+  return _get_playbyplay_for_game(game, time.time() // cache_time.total_seconds())
 
 
 @lru_cache(maxsize=1)
@@ -153,22 +153,23 @@ def _get_standings(ttl_hash):
 
   return rankedStandings
 
-def get_standings(cache_secs=60*10, cache_override=False):
+def get_standings(cache_time=timedelta(minutes=10), cache_override=False):
   if cache_override:
     return _get_standings(-time.time())
-  return _get_standings(time.time() // cache_secs)
+  return _get_standings(time.time() // cache_time.total_seconds())
 
 
 @lru_cache(maxsize=30)
 @RateLimiter(max_calls=5, period=10)
 def _get_team_logo(team_id, ttl_hash, width=32, height=32):
   url = get_logo_url(team_id)
-  image_response = requests.get(url, stream=True)
+  image_response = requests.get(url, stream=True) # stream is required for response.raw
   img = Image.open(image_response.raw)
-  img.thumbnail((width, height))
+  img = img.crop(img.getbbox())
+  img.thumbnail((width, height), resample=Image.HAMMING) # lanczos > hamming per documentation, but eye test says otherwise
   return img
 
-def get_team_logo(team_id, width=32, height=32, cache_secs=60*60*24*30, cache_override=False):
+def get_team_logo(team_id, width=32, height=32, cache_time=timedelta(days=30), cache_override=False):
   if cache_override:
     return _get_team_logo(team_id, -time.time(), width=width, height=height)
-  return _get_team_logo(team_id, time.time() // cache_secs, width=width, height=height)
+  return _get_team_logo(team_id, time.time() // cache_time.total_seconds(), width=width, height=height)
