@@ -4,6 +4,7 @@ from functools import lru_cache
 from nba_api.live.nba.endpoints import playbyplay, scoreboard
 from nba_api.stats.endpoints.leaguestandings import LeagueStandings
 from nba_api.stats.static import teams
+from PIL import Image
 from ratelimiter import RateLimiter
 import config
 import logging
@@ -109,9 +110,9 @@ def game_has_ended(game, cache_secs=60*10, cache_override=False):
 def _get_games_for_today(ttl_hash):
   games = scoreboard.ScoreBoard().games.get_dict()
   
-  game_format = '{gameId}: {awayTeam} vs. {homeTeam} @ {gameTimeLTZ}. {time} in Quarter {quarter}. Score: {awayTeamScore}-{homeTeamScore}'
-  for game in games:
-    logging.debug(game_format.format(gameId=game['gameId'], awayTeam=game['awayTeam']['teamName'], homeTeam=game['homeTeam']['teamName'], gameTimeLTZ=get_game_datetime(game), time=game['gameClock'], quarter=game['period'], awayTeamScore=game['awayTeam']['score'], homeTeamScore=game['homeTeam']['score']))
+  #game_format = '{gameId}: {awayTeam} vs. {homeTeam} @ {gameTimeLTZ}. {time} in Quarter {quarter}. Score: {awayTeamScore}-{homeTeamScore}'
+  #for game in games:
+  #  logging.debug(game_format.format(gameId=game['gameId'], awayTeam=game['awayTeam']['teamName'], homeTeam=game['homeTeam']['teamName'], gameTimeLTZ=get_game_datetime(game), time=game['gameClock'], quarter=game['period'], awayTeamScore=game['awayTeam']['score'], homeTeamScore=game['homeTeam']['score']))
   
   return games
 
@@ -164,7 +165,7 @@ def _get_team_logo(team_id, ttl_hash, width=32, height=32):
   url = get_logo_url(team_id)
   image_response = requests.get(url, stream=True)
   img = Image.open(image_response.raw)
-  img.thumbnail((width, height), resample=Image.LANCZOS)
+  img.thumbnail((width, height))
   return img
 
 def get_team_logo(team_id, width=32, height=32, cache_secs=60*60*24*30, cache_override=False):

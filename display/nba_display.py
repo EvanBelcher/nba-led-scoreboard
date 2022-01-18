@@ -55,9 +55,10 @@ class BeforeGame(Display):
     image = Image.new("RGB", (matrix.width, matrix.height))
     draw = ImageDraw.Draw(image)
     teams = get_teams_from_game(self.game)
-    logos = [get_team_logo(find_team(team_abb)['id']) for team_abb in teams]
-    image.paste(logos[0], (0, 0))
-    image.paste(logos[1], (32, 0))
+    logos = [get_team_logo(team['id']) for team in teams]
+    image.paste(logos[0], (-8, 0))
+    image.paste(logos[1], (36, 0))
+    draw.text((22,10), 'vs.', fill=ImageColor.getrgb('#fff'))
     self._debug_image(image, debug_label)
     time.sleep(10)
 

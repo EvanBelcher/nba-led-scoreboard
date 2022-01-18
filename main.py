@@ -9,7 +9,7 @@ def main():
   logging.basicConfig()
   logging.getLogger().setLevel(MAIN_LOG_LEVEL)
 	
-  b = BeforeGame(get_games_for_today()[0])
+  b = BeforeGame(get_games_for_today()[1])
   
   debug_tk = tk.Tk()
   debug_tk.title('Debug display')
