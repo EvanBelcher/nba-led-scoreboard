@@ -61,6 +61,8 @@ class BeforeGame(Display):
     draw.text((22,10), 'vs.', fill=ImageColor.getrgb('#fff'))
     self._debug_image(image, debug_label)
     time.sleep(10)
+    self._debug_image(get_nba_logo(), debug_label)
+    time.sleep(10)
 
 class AfterGame(Display):
   def __init__(self, game):

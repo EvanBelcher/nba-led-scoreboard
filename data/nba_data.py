@@ -58,6 +58,11 @@ def get_logo_url(team_id):
   team = teams.find_team_name_by_id(team_id)
   return 'http://i.cdn.turner.com/nba/nba/.element/img/1.0/teamsites/logos/teamlogos_500x500/%s.png' % team['abbreviation'].lower()
 
+def get_nba_logo():
+  bg_img = Image.new('RGB', (64, 32))
+  with Image.open('assets/nba_logo.png') as logo_img:
+    bg_img.paste(logo_img, box=(4,0))
+    return bg_img
   
 def get_important_games(favorite_teams):
   important_games = []
