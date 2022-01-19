@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from dateutil import parser
 from functools import lru_cache
-from nba_api.live.nba.endpoints import playbyplay, scoreboard
+from nba_api.live.nba.endpoints import boxscore, playbyplay, scoreboard
 from nba_api.stats.endpoints.leaguestandings import LeagueStandings
 from nba_api.stats.static import teams
 from PIL import Image
@@ -44,6 +44,9 @@ def find_team(keyword):
 
   return None
 
+def get_game_by_id(game_id):
+  box = boxscore.BoxScore(str(game_id))
+  return box.game.get_dict()
 
 def get_game_datetime(game):
   return parser.parse(game["gameTimeUTC"]).replace(
