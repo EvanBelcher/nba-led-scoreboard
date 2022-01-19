@@ -10,6 +10,7 @@ import config
 import logging
 import os
 import pytz
+import re
 import requests
 import time
 
@@ -98,6 +99,13 @@ def get_teams_from_game(game):
   home_team = teams.find_team_by_abbreviation(game['homeTeam']['teamTricode'])
   return [away_team, home_team]
 
+def get_score_from_game(game):
+  return [team.score for team in get_teams_from_game(game)]
+
+def get_game_clock(clock_text):
+  match = re.match(r'PT(\d{2})M(\d{2}).+', clock_text)
+  mins, secs = match.group(1), match.group(2)
+  return '{mins}:{secs}'.format(mins=int(mins), secs=secs)
 
 # Functions that make url requests
 
@@ -156,7 +164,7 @@ def get_games_for_today(cache_time=timedelta(minutes=10), cache_override=False):
 @lru_cache(maxsize=10)
 @RateLimiter(max_calls=1, period=5)
 def _get_playbyplay_for_game(game, ttl_hash):
-  return playbyplay.PlayByPlay(game['gameId']).get_dict()
+  return playbyplay.PlayByPlay(game['gameId']).get_dict()['game']['actions']
 
 
 def get_playbyplay_for_game(game,
@@ -176,8 +184,7 @@ def _get_standings(ttl_hash):
   standings = list()
   for team in response.standings.get_dict()['data']:
     standings.append({
-      'teamId': team[2],
-      'teamName': team[3] + ' ' + team[4],
+      'team': teams.find_team_name_by_id(team[2]),
       'wins': team[12],
       'losses': team[13],
       'winPercent': team[14]
