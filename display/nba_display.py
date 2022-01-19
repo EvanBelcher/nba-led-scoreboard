@@ -1,13 +1,13 @@
+from logging import debug
 from data.nba_data import *
-from datetime import timedelta
-from dateutil import parser
-from display.display import Display, DisplayManager 
-from PIL import Image, ImageColor, ImageDraw, ImageFont, ImageShow
+from display.display import Display, DisplayManager
+from PIL import Image, ImageColor, ImageDraw, ImageFont
 from rgbmatrix import RGBMatrix, RGBMatrixOptions
 import tkinter as tk
 
 
 class NBADisplayManager(DisplayManager):
+
   def __init__(self, favorite_teams, width=64, height=32):
     super().__init__()
     self.favorite_teams = favorite_teams
@@ -19,15 +19,15 @@ class NBADisplayManager(DisplayManager):
     options.rows = self.height
     options.cols = self.width
     options.hardware_mapping = 'adafruit-hat'
-    return RGBMatrix(options = options)
-    
+    return RGBMatrix(options=options)
+
   def create_debug_label(self):
     debug_tk = tk.Tk()
     debug_tk.title('Debug display')
-    debug_tk.geometry('%dx%d'%(self.width*10, self.height*10))
+    debug_tk.geometry('%dx%d' % (self.width * 10, self.height * 10))
     debug_label = tk.Label(debug_tk)
     return debug_label
-  
+
   def get_displays_to_show(self):
     for game in get_important_games(self.favorite_teams):
       if game_is_live(game):
@@ -46,7 +46,9 @@ class NBADisplayManager(DisplayManager):
     for standing in get_standings():
       yield Standings(standing)
 
+
 class BeforeGame(Display):
+
   def __init__(self, game):
     super().__init__()
     self.game = game
@@ -58,13 +60,12 @@ class BeforeGame(Display):
     logos = [get_team_logo(team['id']) for team in teams]
     image.paste(logos[0], (-8, 0))
     image.paste(logos[1], (36, 0))
-    draw.text((22,10), 'vs.', fill=ImageColor.getrgb('#fff'))
-    self._debug_image(image, debug_label)
-    time.sleep(10)
-    self._debug_image(get_nba_logo(), debug_label)
-    time.sleep(10)
+    draw.text((22, 10), 'vs.', fill=ImageColor.getrgb('#fff'))
+    self._display_image(image, 10, matrix, debug_label)
+
 
 class AfterGame(Display):
+
   def __init__(self, game):
     super().__init__()
     self.game = game
@@ -72,7 +73,9 @@ class AfterGame(Display):
   def show(self, matrix, debug_label):
     pass
 
+
 class LiveGame(Display):
+
   def __init__(self, game, game_playbyplay=None):
     super().__init__()
     self.game = game
@@ -81,7 +84,9 @@ class LiveGame(Display):
   def show(self, matrix, debug_label):
     pass
 
+
 class Standings(Display):
+
   def __init__(self, standing):
     super().__init__()
     self.standing = standing
@@ -89,9 +94,11 @@ class Standings(Display):
   def show(self, matrix, debug_label):
     pass
 
+
 class ScreenSaver(Display):
+
   def __init(self):
     super().__init__()
-  
+
   def show(self, matrix, debug_label):
-    pass
+    self._display_image(get_nba_logo(), 10, matrix, debug_label)
