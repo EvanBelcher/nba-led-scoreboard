@@ -108,7 +108,7 @@ class Display(object):
     raise NotImplementedError("Subclasses must implement show()")
 
   def _debug_image(self, image, debug_label):
-    image.save('assets/testing/%d.png'%time.time())
+    image.save('assets/testing/%d.png' % time.time())
     big_img = image.resize((image.width * 10, image.height * 10))
     photo = ImageTk.PhotoImage(big_img)
     debug_label.config(image=photo)
@@ -117,7 +117,7 @@ class Display(object):
 
     debug_label.master.update_idletasks()
     debug_label.master.update()
-  
+
   def _display_image(self, image, display_secs, matrix, debug_label):
     self._debug_image(image, debug_label)
     time.sleep(display_secs)

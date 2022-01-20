@@ -17,10 +17,9 @@ def main():
   before = BeforeGame(game)
   after = AfterGame(game)
   live = LiveGame(game)
-  live_important = LiveGame(game, pbp[:len(pbp)//2])
+  live_important = LiveGame(game, pbp[:len(pbp) // 2])
   standing = Standings(standings[5])
   screensaver = ScreenSaver()
-
 
   debug_tk = tk.Tk()
   debug_tk.title('Debug display')

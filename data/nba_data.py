@@ -45,6 +45,7 @@ def find_team(keyword):
 
   return None
 
+
 def get_game_datetime(game):
   return parser.parse(game["gameTimeUTC"]).replace(
     tzinfo=timezone.utc).astimezone(tz=pytz.timezone(TIMEZONE))
@@ -99,25 +100,30 @@ def get_teams_from_game(game):
   home_team = teams.find_team_by_abbreviation(game['homeTeam']['teamTricode'])
   return [away_team, home_team]
 
+
 def get_score_from_game(game):
   away_score = game['awayTeam']['score']
   home_score = game['homeTeam']['score']
   return [away_score, home_score]
+
 
 def get_game_clock(clock_text):
   match = re.match(r'PT(\d{2})M(\d{2}).+', clock_text)
   mins, secs = match.group(1), match.group(2)
   return '{mins}:{secs}'.format(mins=int(mins), secs=secs)
 
+
 # Functions that make url requests
+
 
 @lru_cache(maxsize=50)
 @RateLimiter(max_calls=1, period=5)
 def _get_game_by_id(game_id, ttl_hash):
   box = boxscore.BoxScore(str(game_id))
   return box.game.get_dict()
-  
-def get_game_by_id(game_id, 
+
+
+def get_game_by_id(game_id,
                    cache_time=timedelta(minutes=10),
                    cache_override=False):
   if cache_override:
@@ -145,7 +151,8 @@ def game_has_ended(game,
                    cache_override=False):
   if cache_override:
     return _game_has_ended(game['gameId'], -time.time())
-  return _game_has_ended(game['gameId'], time.time() // cache_time.total_seconds())
+  return _game_has_ended(game['gameId'],
+                         time.time() // cache_time.total_seconds())
 
 
 @lru_cache(maxsize=1)

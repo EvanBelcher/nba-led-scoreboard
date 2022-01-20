@@ -28,7 +28,7 @@ class ImagePlacement:
     return (self.h(0.5), self.v(0.5))
 
 
-FIVE_PX_FONT = ImageFont.truetype('assets/5px font.ttf', size=4)
+FIVE_PX_FONT = ImageFont.truetype('assets/5px font.ttf', size=5)
 SEVEN_PX_FONT = ImageFont.truetype('assets/7px font.ttf', size=12)
 SEVEN_PX_FONT_BOLD = ImageFont.truetype('assets/7px font bold.ttf', size=12)
 
@@ -88,10 +88,10 @@ class BeforeGame(Display):
     # Team logos
     teams = get_teams_from_game(self.game)
     logos = [get_team_logo(team['id']) for team in teams]
-    image.paste(logos[0], ip.get(-0.25, 0))
-    image.paste(logos[1], ip.get(0.75, 0))
+    image.paste(logos[0], ip.get(-0.22, 0))
+    image.paste(logos[1], ip.get(0.78, 0))
 
-    game_time = get_game_datetime(self.game).strftime('%l:%M %p')
+    game_time = get_game_datetime(self.game).strftime('%l:%M%p')
     display_text = '{team1_name}\nVS.\n{team2_name}\n{game_time}'.format(
       team1_name=teams[0]['abbreviation'],
       team2_name=teams[1]['abbreviation'],
@@ -125,8 +125,8 @@ class AfterGame(Display):
     # Team logos
     teams = get_teams_from_game(self.game)
     logos = [get_team_logo(team['id']) for team in teams]
-    image.paste(logos[0], ip.get(-0.25, 0))
-    image.paste(logos[1], ip.get(0.75, 0))
+    image.paste(logos[0], ip.get(-0.22, 0))
+    image.paste(logos[1], ip.get(0.78, 0))
 
     # Neutral text
     scores = get_score_from_game(self.game)
@@ -255,12 +255,12 @@ class Standings(Display):
     display_text = '{team}\n#{rank}\n{record}'.format(
       team=team['abbreviation'], rank=rank, record=record)
     draw.text(
-      ip.get(0.5, 0),
+      ip.get(0.75, 0.5),
       display_text,
       fill=ImageColor.getrgb('#fff'),
       font=SEVEN_PX_FONT_BOLD,
       anchor='mm',
-      spacing=3,
+      spacing=0,
       align='center')
 
     self._display_image(image, 5, matrix, debug_label)
