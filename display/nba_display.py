@@ -105,7 +105,7 @@ class BeforeGame(Display):
       fill=ImageColor.getrgb('#fff'),
       font=SEVEN_PX_FONT,
       anchor='mm',
-      spacing=1,
+      spacing=-2,
       align='center')
 
     self._display_image(image, 10, matrix, debug_label)
@@ -137,7 +137,7 @@ class AfterGame(Display):
       fill=ImageColor.getrgb('#fff'),
       font=SEVEN_PX_FONT,
       anchor='mm',
-      spacing=1,
+      spacing=-2,
       align='center')
 
     # First team text
@@ -148,7 +148,7 @@ class AfterGame(Display):
       fill=ImageColor.getrgb('#070' if first_team_won else '#f00'),
       font=SEVEN_PX_FONT,
       anchor='mm',
-      spacing=1,
+      spacing=-2,
       align='center')
 
     # Second team text
@@ -158,7 +158,7 @@ class AfterGame(Display):
       fill=ImageColor.getrgb('#f00' if first_team_won else '#070'),
       font=SEVEN_PX_FONT,
       anchor='mm',
-      spacing=1,
+      spacing=-2,
       align='center')
 
     self._display_image(image, 10, matrix, debug_label)

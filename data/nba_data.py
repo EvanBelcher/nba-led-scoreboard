@@ -1,6 +1,7 @@
+from collections.abc import Collection, Mapping, Hashable
 from datetime import datetime, timedelta, timezone
 from dateutil import parser
-from functools import lru_cache
+from functools import lru_cache, wraps
 from nba_api.live.nba.endpoints import boxscore, playbyplay, scoreboard
 from nba_api.stats.endpoints.leaguestandings import LeagueStandings
 from nba_api.stats.static import teams
@@ -22,8 +23,8 @@ SLEEP_TIME = config.SLEEP_TIME or None
 WAKE_TIME = config.WAKE_TIME or None
 SLEEP_DAY = config.SLEEP_DAY or None
 WAKE_DAY = config.WAKE_DAY or None
-os.environ[
-  'TZ'] = config.TIMEZONE if config.TIMEZONE in pytz.all_timezones else 'UTC'
+TIMEZONE = config.TIMEZONE if config.TIMEZONE in pytz.all_timezones else 'UTC'
+os.environ['TZ'] = TIMEZONE
 time.tzset()
 
 
@@ -43,10 +44,6 @@ def find_team(keyword):
     return teams.find_teams_by_state(keyword)[0]
 
   return None
-
-def get_game_by_id(game_id):
-  box = boxscore.BoxScore(str(game_id))
-  return box.game.get_dict()
 
 def get_game_datetime(game):
   return parser.parse(game["gameTimeUTC"]).replace(
@@ -103,7 +100,9 @@ def get_teams_from_game(game):
   return [away_team, home_team]
 
 def get_score_from_game(game):
-  return [team.score for team in get_teams_from_game(game)]
+  away_score = game['awayTeam']['score']
+  home_score = game['homeTeam']['score']
+  return [away_score, home_score]
 
 def get_game_clock(clock_text):
   match = re.match(r'PT(\d{2})M(\d{2}).+', clock_text)
@@ -112,10 +111,24 @@ def get_game_clock(clock_text):
 
 # Functions that make url requests
 
+@lru_cache(maxsize=50)
+@RateLimiter(max_calls=1, period=5)
+def _get_game_by_id(game_id, ttl_hash):
+  box = boxscore.BoxScore(str(game_id))
+  return box.game.get_dict()
+  
+def get_game_by_id(game_id, 
+                   cache_time=timedelta(minutes=10),
+                   cache_override=False):
+  if cache_override:
+    return _get_game_by_id(game_id, -time.time())
+  return _get_game_by_id(game_id, time.time() // cache_time.total_seconds())
+
 
 @lru_cache(maxsize=30)
 @RateLimiter(max_calls=1, period=5)
-def _game_has_ended(game, ttl_hash):
+def _game_has_ended(game_id, ttl_hash):
+  game = get_game_by_id(game_id)
   if datetime.now(tz=pytz.timezone(
       TIMEZONE)) > get_game_datetime(game) + timedelta(hours=4):
     # Game started 4 hours ago. It must be over.
@@ -131,8 +144,8 @@ def game_has_ended(game,
                    cache_time=timedelta(minutes=10),
                    cache_override=False):
   if cache_override:
-    return _game_has_ended(game, -time.time())
-  return _game_has_ended(game, time.time() // cache_time.total_seconds())
+    return _game_has_ended(game['gameId'], -time.time())
+  return _game_has_ended(game['gameId'], time.time() // cache_time.total_seconds())
 
 
 @lru_cache(maxsize=1)
@@ -166,7 +179,8 @@ def get_games_for_today(cache_time=timedelta(minutes=10), cache_override=False):
 
 @lru_cache(maxsize=10)
 @RateLimiter(max_calls=1, period=5)
-def _get_playbyplay_for_game(game, ttl_hash):
+def _get_playbyplay_for_game(game_id, ttl_hash):
+  game = get_game_by_id(game_id)
   return playbyplay.PlayByPlay(game['gameId']).get_dict()['game']['actions']
 
 
@@ -174,8 +188,8 @@ def get_playbyplay_for_game(game,
                             cache_time=timedelta(seconds=5),
                             cache_override=False):
   if cache_override:
-    return _get_playbyplay_for_game(game, -time.time())
-  return _get_playbyplay_for_game(game,
+    return _get_playbyplay_for_game(game['gameId'], -time.time())
+  return _get_playbyplay_for_game(game['gameId'],
                                   time.time() // cache_time.total_seconds())
 
 
