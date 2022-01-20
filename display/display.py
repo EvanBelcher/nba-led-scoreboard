@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from PIL import ImageTk
+import logging
 import time
 
 
@@ -19,7 +20,10 @@ class DisplayManager(object):
       self._sleep_if_necessary()
       self._run_scheduled_actions()
       for display in self.get_displays_to_show():
-        display.show(self.rgb_matrix)
+        try:
+          display.show(self.rgb_matrix)
+        except Exception as e:
+          logging.debug(e)
 
   def create_rgb_matrix(self):
     raise NotImplementedError(

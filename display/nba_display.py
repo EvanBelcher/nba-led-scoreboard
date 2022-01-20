@@ -3,6 +3,7 @@ from data.nba_data import *
 from display.display import Display, DisplayManager
 from PIL import Image, ImageColor, ImageDraw, ImageFont
 from rgbmatrix import RGBMatrix, RGBMatrixOptions
+import logging
 import tkinter as tk
 
 
@@ -56,10 +57,14 @@ class NBADisplayManager(DisplayManager):
     return debug_label
 
   def get_displays_to_show(self):
-    for game in get_important_games(self.favorite_teams):
-      if game_is_live(game):
-        return [LiveGame(game, get_playbyplay_for_game(game))]
-    return list(self._get_idle_displays(self, get_games_for_today()))
+    try:
+      for game in get_important_games(self.favorite_teams):
+        if game_is_live(game):
+          return [LiveGame(game, get_playbyplay_for_game(game))]
+      return list(self._get_idle_displays(self, get_games_for_today()))
+    except Exception as e:
+      logging.debug(e)
+      return [ScreenSaver()]
 
   def _get_idle_displays(self, games):
     yield ScreenSaver()
