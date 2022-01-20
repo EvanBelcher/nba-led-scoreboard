@@ -93,8 +93,8 @@ class BeforeGame(Display):
     # Team logos
     teams = get_teams_from_game(self.game)
     logos = [get_team_logo(team['id']) for team in teams]
-    image.paste(logos[0], ip.get(-0.22, 0))
-    image.paste(logos[1], ip.get(0.78, 0))
+    image.paste(logos[0], ip.get(-0.3, 0))
+    image.paste(logos[1], ip.get(0.8, 0))
 
     game_time = get_game_datetime(self.game).strftime('%l:%M%p')
     display_text = '{team1_name}\nVS.\n{team2_name}\n{game_time}'.format(
@@ -130,8 +130,8 @@ class AfterGame(Display):
     # Team logos
     teams = get_teams_from_game(self.game)
     logos = [get_team_logo(team['id']) for team in teams]
-    image.paste(logos[0], ip.get(-0.22, 0))
-    image.paste(logos[1], ip.get(0.78, 0))
+    image.paste(logos[0], ip.get(-0.3, 0))
+    image.paste(logos[1], ip.get(0.8, 0))
 
     # Neutral text
     scores = get_score_from_game(self.game)
@@ -203,7 +203,7 @@ class LiveGame(Display):
       fill=ImageColor.getrgb('#fff'),
       font=SEVEN_PX_FONT_BOLD,
       anchor='mm',
-      spacing=8,
+      spacing=6,
       align='center')
     draw.text(
       ip.get(5 / 6, 0.5),
@@ -212,7 +212,7 @@ class LiveGame(Display):
       fill=ImageColor.getrgb('#fff'),
       font=SEVEN_PX_FONT_BOLD,
       anchor='mm',
-      spacing=8,
+      spacing=6,
       align='center')
 
     # Game text
