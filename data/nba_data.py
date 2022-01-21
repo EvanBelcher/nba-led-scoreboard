@@ -246,7 +246,15 @@ def _get_team_logo(team_id, ttl_hash, width=32, height=32):
   img.thumbnail(
     (width, height), resample=Image.HAMMING
   )  # lanczos > hamming per documentation, but eye test says otherwise
-  return img
+  if img.width == width and img.height == height:
+    return img
+  
+  h_offset = (width - img.width) // 2
+  v_offset = (height - img.height) // 2  
+  bg_img = Image.new("RGB", (width, height))
+  bg_img.paste(img, (h_offset, v_offset))
+
+  return bg_img
 
 
 def get_team_logo(team_id,
