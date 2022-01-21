@@ -9,24 +9,34 @@ import tkinter as tk
 
 class ImagePlacement:
 
-  def __init__(self, width, height):
+  def __init__(self, width, height, offset=(0,0)):
     self.width = width
     self.height = height
+    self.h_offset, self.v_offset = offset
 
   def h(self, placement):
-    return round(self.width * placement)
+    return round(self.width * placement) + self.h_offset
 
   def v(self, placement):
-    return round(self.height * placement)
+    return round(self.height * placement) + self.v_offset
 
   def get(self, h_placement, v_placement):
     return (self.h(h_placement), self.v(v_placement))
 
   def topleft(self):
-    return (0, 0)
+    return (self.h(0), self.v(0))
 
   def center(self):
     return (self.h(0.5), self.v(0.5))
+    
+  def with_h_offset(self, h_offset=1):
+    return ImagePlacement(self.width, self.height, offset=(h_offset, 0))
+    
+  def with_v_offset(self, v_offset=1):
+    return ImagePlacement(self.width, self.height, offset=(0, v_offset))
+    
+  def with_offset(self, offset=(1,1)):
+    return ImagePlacement(self.width, self.height, offset=offset)
 
 
 FIVE_PX_FONT = ImageFont.truetype('assets/5px font.ttf', size=5)
@@ -115,10 +125,10 @@ class BeforeGame(Display):
     # Team logos
     teams = get_teams_from_game(self.game)
     logos = [get_team_logo(team['id']) for team in teams]
-    image.paste(logos[0], ip.get(-0.25, 0))
-    image.paste(logos[1], ip.get(0.75, 0))
+    image.paste(logos[0], ip.with_v_offset().get(-0.28, 0))
+    image.paste(logos[1], ip.with_v_offset().get(0.78, 0))
 
-    game_time = get_game_datetime(self.game).strftime('%l:%M%p')
+    game_time = get_game_datetime(self.game).strftime('@%l:%M')
     display_text = '{team1_name}\nVS.\n{team2_name}\n{game_time}'.format(
       team1_name=teams[0]['abbreviation'],
       team2_name=teams[1]['abbreviation'],
@@ -153,8 +163,8 @@ class AfterGame(Display):
     # Team logos
     teams = get_teams_from_game(self.game)
     logos = [get_team_logo(team['id']) for team in teams]
-    image.paste(logos[0], ip.get(-0.25, 0))
-    image.paste(logos[1], ip.get(0.75, 0))
+    image.paste(logos[0], ip.with_v_offset().get(-0.28, 0))
+    image.paste(logos[1], ip.with_v_offset().get(0.78, 0))
 
     # Neutral text
     scores = get_score_from_game(self.game)
@@ -209,8 +219,8 @@ class LiveGame(Display):
     team_2_name = teams[1]['abbreviation']
 
     if self.game_playbyplay:
-      team_1_score = self.game_playbyplay[-1]['scoreAway']
-      team_2_score = self.game_playbyplay[-1]['scoreHome']
+      team_1_score = int(self.game_playbyplay[-1]['scoreAway'])
+      team_2_score = int(self.game_playbyplay[-1]['scoreHome'])
       period = self.game_playbyplay[-1]['period']
       game_clock = get_game_clock(self.game_playbyplay[-1]['clock'])
     else:
@@ -220,23 +230,23 @@ class LiveGame(Display):
 
     # Team text
     image = draw_text(image,
-      ip.get(1 / 6, 0.5),
+      ip.with_h_offset().get(1 / 6, 0.5),
       '{team_1_name}\n{team_1_score}'.format(
         team_1_name=team_1_name, team_1_score=team_1_score),
       fill=ImageColor.getrgb('#fff'),
       font=SEVEN_PX_FONT_BOLD,
       anchor='mm',
       spacing=6,
-      align='center')
+      align='center' if team_1_score < 100 else 'left')
     image = draw_text(image,
-      ip.get(5 / 6, 0.5),
+      ip.with_h_offset(-1).get(5 / 6, 0.5),
       '{team_2_name}\n{team_2_score}'.format(
         team_2_name=team_2_name, team_2_score=team_2_score),
       fill=ImageColor.getrgb('#fff'),
       font=SEVEN_PX_FONT_BOLD,
       anchor='mm',
       spacing=6,
-      align='center')
+      align='center' if team_2_score < 100 else 'right')
 
     # Game text
     image = draw_text(image,
@@ -274,7 +284,7 @@ class Standings(Display):
     # Team logos
     team = self.standing['team']
     logo = get_team_logo(team['id'])
-    image.paste(logo, ip.topleft())
+    image.paste(logo, ip.with_offset().topleft())
 
     # Text
     rank = self.standing['rank']

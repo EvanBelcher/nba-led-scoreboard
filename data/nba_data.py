@@ -237,7 +237,7 @@ def get_standings(cache_time=timedelta(minutes=10), cache_override=False):
 
 @lru_cache(maxsize=30)
 @RateLimiter(max_calls=5, period=10)
-def _get_team_logo(team_id, ttl_hash, width=32, height=32):
+def _get_team_logo(team_id, ttl_hash, width=30, height=30):
   url = get_logo_url(team_id)
   image_response = requests.get(
     url, stream=True)  # stream is required for response.raw
@@ -258,8 +258,8 @@ def _get_team_logo(team_id, ttl_hash, width=32, height=32):
 
 
 def get_team_logo(team_id,
-                  width=32,
-                  height=32,
+                  width=30,
+                  height=30,
                   cache_time=timedelta(days=30),
                   cache_override=False):
   if cache_override:
