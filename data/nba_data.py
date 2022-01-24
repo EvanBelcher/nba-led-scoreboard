@@ -248,9 +248,9 @@ def _get_team_logo(team_id, ttl_hash, width=30, height=30):
   )  # lanczos > hamming per documentation, but eye test says otherwise
   if img.width == width and img.height == height:
     return img
-  
+
   h_offset = (width - img.width) // 2
-  v_offset = (height - img.height) // 2  
+  v_offset = (height - img.height) // 2
   bg_img = Image.new("RGB", (width, height))
   bg_img.paste(img, (h_offset, v_offset))
 

@@ -112,7 +112,7 @@ class Display(object):
     raise NotImplementedError("Subclasses must implement show()")
 
   def _debug_image(self, image, debug_label):
-    image.save('assets/testing/%d.png' % time.time())
+    # image.save('assets/testing/%d.png' % time.time())
     big_img = image.resize((image.width * 10, image.height * 10))
     photo = ImageTk.PhotoImage(big_img)
     debug_label.config(image=photo)
@@ -134,15 +134,14 @@ class Animation(Display):
     self.framerate = framerate
     self.frames = list()
 
-  def show(self, matrix, debug_tk):
+  def show(self, matrix, debug_label):
     if len(self.frames) == 0:
-      raise NotImplementedError("Sublclasses must define at least one frame")
-    for frame_func in self.frames:
-      frame_func(matrix, debug_tk)
-      time.sleep(1 / self.framerate)
+      raise NotImplementedError("Subclasses must define at least one frame")
+    for frame in self.frames:
+      self._display_image(frame, 1 / self.framerate, matrix, debug_label)
 
-  def add_frame(self, frame_func):
-    self.frames.append(frame_func)
+  def add_frame(self, frame):
+    self.frames.append(frame)
 
-  def add_frames(self, frame_funcs):
-    self.frames.extend(frame_funcs)
+  def add_frames(self, frames):
+    self.frames.extend(frames)
