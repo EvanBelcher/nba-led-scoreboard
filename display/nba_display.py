@@ -6,6 +6,7 @@ from rgbmatrix import RGBMatrix, RGBMatrixOptions
 import logging
 import math
 import tkinter as tk
+import traceback
 
 
 class ImagePlacement:
@@ -66,7 +67,7 @@ def draw_text(img, *args, **kwargs):
   return Image.alpha_composite(img, clear_bg)
 
 
-def slide_img(img, final_loc, base_img=Image.new('RGB', (64, 32)), steps=180):
+def slide_img(matrix, debug_label, img, final_loc, base_img=Image.new('RGB', (64, 32)), steps=60):
   ip = ImagePlacement(base_img.width, base_img.height)
 
   start_loc = ip.with_offset((-img.width // 2, -img.height // 2)).center()
@@ -85,17 +86,15 @@ def slide_img(img, final_loc, base_img=Image.new('RGB', (64, 32)), steps=180):
     animation.add_frame(frame)
     last_frame = frame
 
-  animation.show()
+  animation.show(matrix, debug_label)
   return last_frame
 
 
 class NBADisplayManager(DisplayManager):
 
   def __init__(self, favorite_teams, width=64, height=32):
-    super().__init__()
+    super().__init__(width=width, height=height)
     self.favorite_teams = favorite_teams
-    self.width = width
-    self.height = height
 
   def create_rgb_matrix(self):
     options = RGBMatrixOptions()
@@ -116,13 +115,16 @@ class NBADisplayManager(DisplayManager):
       for game in get_important_games(self.favorite_teams):
         if game_is_live(game):
           return [LiveGame(game, get_playbyplay_for_game(game))]
-      return list(self._get_idle_displays(self, get_games_for_today()))
+      return list(self._get_idle_displays(get_games_for_today()))
+    except KeyboardInterrupt:
+          sys.exit()  
     except Exception as e:
+      traceback.print_exc()
       logging.debug(e)
       return [ScreenSaver()]
 
   def _get_idle_displays(self, games):
-    yield ScreenSaver()
+    # yield ScreenSaver()
     for game in games:
       if not game_has_started(game):
         yield BeforeGame(game)
@@ -149,12 +151,9 @@ class BeforeGame(Display):
     teams = get_teams_from_game(self.game)
     logos = [get_team_logo(team['id']) for team in teams]
 
-    image = slide_img(
-      logos[0], ip.with_v_offset().get(-0.28, 0), base_img=image)
-    image = slide_img(logos[1], ip.with_v_offset().get(0.78, 0), base_img=image)
-
-    #image.paste(logos[0], ip.with_v_offset().get(-0.28, 0))
-    #image.paste(logos[1], ip.with_v_offset().get(0.78, 0))
+    image = slide_img(matrix, debug_label,
+      logos[0], ip.with_v_offset().get(-0.25, 0), base_img=image, steps=20)
+    image = slide_img(matrix, debug_label, logos[1], ip.with_v_offset().get(0.78, 0), base_img=image, steps=20)
 
     game_time = get_game_datetime(self.game).strftime('@%l:%M')
     display_text = '{team1_name}\nVS.\n{team2_name}\n{game_time}'.format(

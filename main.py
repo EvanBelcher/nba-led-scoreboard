@@ -1,5 +1,5 @@
 from data.nba_data import *
-from display.nba_display import AfterGame, BeforeGame, LiveGame, ScreenSaver, Standings
+from display.nba_display import AfterGame, BeforeGame, LiveGame, ScreenSaver, Standings, NBADisplayManager
 import logging
 import tkinter as tk
 
@@ -10,6 +10,15 @@ def main():
   logging.basicConfig()
   logging.getLogger().setLevel(MAIN_LOG_LEVEL)
 
+  show_display()
+  # test_display()
+
+def show_display():  
+  dm = NBADisplayManager(FAVORITE_TEAMS)
+  dm.start()
+  
+
+def test_display():
   game = get_game_by_id('0022000196')
   pbp = get_playbyplay_for_game(game)
   standings = get_standings()

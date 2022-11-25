@@ -2,12 +2,15 @@ from datetime import datetime, timedelta, timezone
 from PIL import ImageTk
 import logging
 import time
+import sys
 
 
 class DisplayManager(object):
   _SECONDS_IN_DAY = 86400
 
-  def __init__(self):
+  def __init__(self, width=64, height=32):
+    self.width = width
+    self.height = height
     self.scheduled_actions = []
     self.start_time, self.stop_time = None, None
     self.start_day, self.stop_day = None, None
@@ -21,7 +24,9 @@ class DisplayManager(object):
       self._run_scheduled_actions()
       for display in self.get_displays_to_show():
         try:
-          display.show(self.rgb_matrix)
+          display.show(self.rgb_matrix, self.debug_label)
+        except KeyboardInterrupt:
+          sys.exit()
         except Exception as e:
           logging.debug(e)
 

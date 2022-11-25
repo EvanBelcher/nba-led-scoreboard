@@ -1,5 +1,5 @@
 # Config file for NBA LED Scoreboard
-# See https://github.com/EvanBelcher/nba-led-scoreboard/blob/main/data/nba_data.py if you mess up
+# See https://github.com/EvanBelcher/nba-led-scoreboard/blob/main/config.py if you mess up
 # this file.
 
 # Please put text in quotes "", and put lists in brackets [], seperating values by commas.
@@ -9,7 +9,7 @@
 # You can list teams by their abbreviation, full name, short name (e.g. Clippers), city, or state
 # Duplicates will be ignored.
 # Example: FAVORITE_TEAMS = ["CHI", "Cleveland Cavaliers", "Pacers", "Milwaukee", "Michigan"]
-FAVORITE_TEAMS = []
+FAVORITE_TEAMS = ["Hornets","Magic","Knicks"]
 
 # Your timezone
 # See valid timezones at the botom of this file

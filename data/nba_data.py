@@ -5,7 +5,7 @@ from functools import lru_cache, wraps
 from nba_api.live.nba.endpoints import boxscore, playbyplay, scoreboard
 from nba_api.stats.endpoints.leaguestandings import LeagueStandings
 from nba_api.stats.static import teams
-from PIL import Image
+from PIL import Image, ImageOps
 from ratelimiter import RateLimiter
 import config
 import logging
@@ -14,19 +14,7 @@ import pytz
 import re
 import requests
 import time
-
-FAVORITE_TEAMS = [
-  find_team(team) for team in config.FAVORITE_TEAMS if team is not None
-]
-FAVORITE_TEAM_NAMES = [team['nickname'] for team in FAVORITE_TEAMS]
-SLEEP_TIME = config.SLEEP_TIME or None
-WAKE_TIME = config.WAKE_TIME or None
-SLEEP_DAY = config.SLEEP_DAY or None
-WAKE_DAY = config.WAKE_DAY or None
-TIMEZONE = config.TIMEZONE if config.TIMEZONE in pytz.all_timezones else 'UTC'
-os.environ['TZ'] = TIMEZONE
-time.tzset()
-
+import sys
 
 def find_team(keyword):
   if not keyword:
@@ -52,7 +40,7 @@ def get_game_datetime(game):
 
 
 def game_has_started(game):
-  return datetime.now(tz=pytz.timezone(TIMEZONE)) < get_game_datetime(game)
+  return datetime.now(tz=pytz.timezone(TIMEZONE)) >= get_game_datetime(game)
 
 
 def game_is_live(game):
@@ -61,14 +49,17 @@ def game_is_live(game):
 
 def get_logo_url(team_id):
   team = teams.find_team_name_by_id(team_id)
-  return ('http://i.cdn.turner.com/nba/nba/.element/img/1.0/teamsites/logos/'
-          'teamlogos_500x500/%s.png' % team['abbreviation'].lower())
-
+  # return ('http://i.cdn.turner.com/nba/nba/.element/img/1.0/teamsites/logos/'
+          #'teamlogos_500x500/%s.png' % team['abbreviation'].lower())
+  team_name = '-'.join(team['full_name'].split(' ')).lower()
+  return 'https://i.logocdn.com/nba/2022/%s.png' % team_name
 
 def get_nba_logo():
   bg_img = Image.new('RGB', (64, 32))
   with Image.open('assets/nba_logo.png') as logo_img:
-    bg_img.paste(logo_img, box=(4, 0))
+    logo_img = logo_img.crop(logo_img.getbbox())
+    logo_img = ImageOps.pad(logo_img, (64, 32), method=Image.HAMMING)
+    bg_img.paste(logo_img)
     return bg_img
 
 
@@ -119,6 +110,7 @@ def get_game_clock(clock_text):
 @lru_cache(maxsize=50)
 @RateLimiter(max_calls=1, period=5)
 def _get_game_by_id(game_id, ttl_hash):
+  print('Game id: %s' % game_id)
   box = boxscore.BoxScore(str(game_id))
   return box.game.get_dict()
 
@@ -140,7 +132,7 @@ def _game_has_ended(game_id, ttl_hash):
     # Game started 4 hours ago. It must be over.
     return True
   if any(action['actionType'] == 'game'
-         for action in get_playbyplay_for_game(game)['game']['actions']):
+         for action in get_playbyplay_for_game(game)):
     # Game has ended
     return True
   return False
@@ -242,17 +234,16 @@ def _get_team_logo(team_id, ttl_hash, width=30, height=30):
   image_response = requests.get(
     url, stream=True)  # stream is required for response.raw
   img = Image.open(image_response.raw)
-  img = img.crop(img.getbbox())
-  img.thumbnail(
-    (width, height), resample=Image.HAMMING
-  )  # lanczos > hamming per documentation, but eye test says otherwise
-  if img.width == width and img.height == height:
-    return img
+  
+  black_img = Image.new("RGB", (img.width, img.height), (0,0,0))
+  black_img.paste(img, mask=img.split()[3])
+  bbox = black_img.getbbox()
+  
+  img = img.crop(bbox)
+  img = ImageOps.pad(img, (width-2, height), method=Image.HAMMING, color=(0,0,0))
 
-  h_offset = (width - img.width) // 2
-  v_offset = (height - img.height) // 2
-  bg_img = Image.new("RGB", (width, height))
-  bg_img.paste(img, (h_offset, v_offset))
+  bg_img = Image.new("RGB", (width, height), (0,0,0))
+  bg_img.paste(img, (1, 0))
 
   return bg_img
 
@@ -269,3 +260,16 @@ def get_team_logo(team_id,
     time.time() // cache_time.total_seconds(),
     width=width,
     height=height)
+
+
+FAVORITE_TEAMS = [
+  find_team(team) for team in config.FAVORITE_TEAMS if team is not None
+]
+FAVORITE_TEAM_NAMES = [team['nickname'] for team in FAVORITE_TEAMS]
+SLEEP_TIME = config.SLEEP_TIME or None
+WAKE_TIME = config.WAKE_TIME or None
+SLEEP_DAY = config.SLEEP_DAY or None
+WAKE_DAY = config.WAKE_DAY or None
+TIMEZONE = config.TIMEZONE if config.TIMEZONE in pytz.all_timezones else 'UTC'
+os.environ['TZ'] = TIMEZONE
+time.tzset()
