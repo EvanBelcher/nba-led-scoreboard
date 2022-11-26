@@ -1,12 +1,27 @@
-from logging import debug
 from data.nba_data import *
 from display.display import Animation, Display, DisplayManager
+from logging import debug
 from PIL import Image, ImageColor, ImageDraw, ImageFont
-from rgbmatrix import RGBMatrix, RGBMatrixOptions
 import logging
 import math
+import os
 import tkinter as tk
 import traceback
+
+
+if os.name == 'nt':
+
+  class RGBMatrix:
+
+    def __init__(self, options=None):
+      self.options = options
+      self.width = 64
+      self.height = 32
+
+  class RGBMatrixOptions:
+    pass
+else:
+  from rgbmatrix import RGBMatrix, RGBMatrixOptions
 
 
 class ImagePlacement:
@@ -95,6 +110,7 @@ class NBADisplayManager(DisplayManager):
   def __init__(self, favorite_teams, width=64, height=32):
     super().__init__(width=width, height=height)
     self.favorite_teams = favorite_teams
+    self.live_game_times = {}
 
   def create_rgb_matrix(self):
     options = RGBMatrixOptions()
@@ -114,10 +130,10 @@ class NBADisplayManager(DisplayManager):
     try:
       for game in get_important_games(self.favorite_teams):
         if game_is_live(game):
-          return [LiveGame(game, get_playbyplay_for_game(game))]
+          return [LiveGame(game, get_playbyplay_for_game(game), manager=self)]
       return list(self._get_idle_displays(get_games_for_today()))
     except KeyboardInterrupt:
-          sys.exit()  
+      sys.exit()
     except Exception as e:
       traceback.print_exc()
       logging.debug(e)
@@ -135,6 +151,23 @@ class NBADisplayManager(DisplayManager):
     for standing in get_standings():
       yield Standings(standing)
 
+  def get_corrected_game_clock_text(self, game_id, mins, secs):
+    last_time, game_mins, game_secs = self.live_game_times.setdefault(game_id, (0, 0, 0))
+    if game_mins == mins and game_secs == secs:
+      elapsed_seconds = int(time.time() - last_time)
+      secs -= elapsed_seconds
+      while secs < 0:
+        secs += 60
+        mins -= 1
+      if mins < 0:
+        mins = 0
+    else:
+      self.live_game_times[game_id] = (time.time(), mins, secs)
+    secs = str(secs)
+    if len(secs) == 1:
+      secs = f'0{secs}'
+    return f'{mins}:{secs}'
+
 
 class BeforeGame(Display):
 
@@ -151,27 +184,33 @@ class BeforeGame(Display):
     teams = get_teams_from_game(self.game)
     logos = [get_team_logo(team['id']) for team in teams]
 
-    image = slide_img(matrix, debug_label,
-      logos[0], ip.with_v_offset().get(-0.25, 0), base_img=image, steps=20)
-    image = slide_img(matrix, debug_label, logos[1], ip.with_v_offset().get(0.78, 0), base_img=image, steps=20)
+    image = slide_img(
+        matrix, debug_label, logos[0], ip.with_v_offset().get(-0.25, 0), base_img=image, steps=20)
+    image = slide_img(
+        matrix, debug_label, logos[1], ip.with_v_offset().get(0.78, 0), base_img=image, steps=20)
 
-    game_time = get_game_datetime(self.game).strftime('@%l:%M')
+    if os.name == 'nt':
+      format_str = '@%I:%M'
+    else:
+      format_str = '@%l:%M'
+
+    game_time = get_game_datetime(self.game).strftime(format_str)
     display_text = '{team1_name}\nVS.\n{team2_name}\n{game_time}'.format(
-      team1_name=teams[0]['abbreviation'],
-      team2_name=teams[1]['abbreviation'],
-      game_time=game_time)
+        team1_name=teams[0]['abbreviation'],
+        team2_name=teams[1]['abbreviation'],
+        game_time=game_time)
 
     # Text
     #17,1 for normal anchor
     image = draw_text(
-      image,
-      ip.center(),
-      display_text,
-      fill=ImageColor.getrgb('#fff'),
-      font=SEVEN_PX_FONT,
-      anchor='mm',
-      spacing=-2,
-      align='center')
+        image,
+        ip.center(),
+        display_text,
+        fill=ImageColor.getrgb('#fff'),
+        font=SEVEN_PX_FONT,
+        anchor='mm',
+        spacing=-2,
+        align='center')
 
     self._display_image(image, 10, matrix, debug_label)
 
@@ -197,47 +236,48 @@ class AfterGame(Display):
     scores = get_score_from_game(self.game)
     score_text = '{scores[0]}-{scores[1]}'.format(scores=scores)
     image = draw_text(
-      image,
-      ip.center(),
-      ' \nVS.\n \n{score}'.format(score=score_text),
-      fill=ImageColor.getrgb('#fff'),
-      font=SEVEN_PX_FONT,
-      anchor='mm',
-      spacing=-2,
-      align='center')
+        image,
+        ip.center(),
+        ' \nVS.\n \n{score}'.format(score=score_text),
+        fill=ImageColor.getrgb('#fff'),
+        font=SEVEN_PX_FONT,
+        anchor='mm',
+        spacing=-2,
+        align='center')
 
     # First team text
     first_team_won = scores[0] > scores[1]
     image = draw_text(
-      image,
-      ip.center(),
-      '{team1_name}\n \n \n '.format(team1_name=teams[0]['abbreviation']),
-      fill=ImageColor.getrgb('#070' if first_team_won else '#f00'),
-      font=SEVEN_PX_FONT,
-      anchor='mm',
-      spacing=-2,
-      align='center')
+        image,
+        ip.center(),
+        '{team1_name}\n \n \n '.format(team1_name=teams[0]['abbreviation']),
+        fill=ImageColor.getrgb('#070' if first_team_won else '#f00'),
+        font=SEVEN_PX_FONT,
+        anchor='mm',
+        spacing=-2,
+        align='center')
 
     # Second team text
     image = draw_text(
-      image,
-      ip.center(),
-      ' \n \n{team2_name}\n '.format(team2_name=teams[1]['abbreviation']),
-      fill=ImageColor.getrgb('#f00' if first_team_won else '#070'),
-      font=SEVEN_PX_FONT,
-      anchor='mm',
-      spacing=-2,
-      align='center')
+        image,
+        ip.center(),
+        ' \n \n{team2_name}\n '.format(team2_name=teams[1]['abbreviation']),
+        fill=ImageColor.getrgb('#f00' if first_team_won else '#070'),
+        font=SEVEN_PX_FONT,
+        anchor='mm',
+        spacing=-2,
+        align='center')
 
     self._display_image(image, 10, matrix, debug_label)
 
 
 class LiveGame(Display):
 
-  def __init__(self, game, game_playbyplay=None):
+  def __init__(self, game, game_playbyplay=None, manager=None):
     super().__init__()
     self.game = game
     self.game_playbyplay = game_playbyplay
+    self.manager = manager
 
   def show(self, matrix, debug_label):
     image = Image.new("RGBA", (matrix.width, matrix.height), color='#000')
@@ -252,56 +292,68 @@ class LiveGame(Display):
       team_1_score = int(self.game_playbyplay[-1]['scoreAway'])
       team_2_score = int(self.game_playbyplay[-1]['scoreHome'])
       period = self.game_playbyplay[-1]['period']
-      game_clock = get_game_clock(self.game_playbyplay[-1]['clock'])
     else:
       team_1_score, team_2_score = get_score_from_game(self.game)
       period = self.game['period']
-      game_clock = get_game_clock(self.game['gameClock'])
 
     # Team text
     image = draw_text(
-      image,
-      ip.with_h_offset().get(1 / 6, 0.5),
-      '{team_1_name}\n{team_1_score}'.format(
-        team_1_name=team_1_name, team_1_score=team_1_score),
-      fill=ImageColor.getrgb('#fff'),
-      font=SEVEN_PX_FONT_BOLD,
-      anchor='mm',
-      spacing=6,
-      align='center' if team_1_score < 100 else 'left')
+        image,
+        ip.with_h_offset().get(1 / 6, 0.5),
+        '{team_1_name}\n{team_1_score}'.format(team_1_name=team_1_name, team_1_score=team_1_score),
+        fill=ImageColor.getrgb('#fff'),
+        font=SEVEN_PX_FONT_BOLD,
+        anchor='mm',
+        spacing=6,
+        align='center' if team_1_score < 100 else 'left')
     image = draw_text(
-      image,
-      ip.with_h_offset(-1).get(5 / 6, 0.5),
-      '{team_2_name}\n{team_2_score}'.format(
-        team_2_name=team_2_name, team_2_score=team_2_score),
-      fill=ImageColor.getrgb('#fff'),
-      font=SEVEN_PX_FONT_BOLD,
-      anchor='mm',
-      spacing=6,
-      align='center' if team_2_score < 100 else 'right')
+        image,
+        ip.with_h_offset(-1).get(5 / 6, 0.5),
+        '{team_2_name}\n{team_2_score}'.format(team_2_name=team_2_name, team_2_score=team_2_score),
+        fill=ImageColor.getrgb('#fff'),
+        font=SEVEN_PX_FONT_BOLD,
+        anchor='mm',
+        spacing=6,
+        align='center' if team_2_score < 100 else 'right')
 
     # Game text
     image = draw_text(
-      image,
-      ip.center(),
-      'LIVE\n \n ',
-      fill=ImageColor.getrgb('#f00'),
-      font=FIVE_PX_FONT,
-      anchor='mm',
-      spacing=6,
-      align='center')
-    image = draw_text(
-      image,
-      ip.center(),
-      ' \nQ{period}\n{clock}'.format(period=period, clock=game_clock),
-      fill=ImageColor.getrgb('#fff'),
-      font=FIVE_PX_FONT,
-      anchor='mm',
-      spacing=6,
-      align='center')
+        image,
+        ip.center(),
+        'LIVE\n \n ',
+        fill=ImageColor.getrgb('#f00'),
+        font=FIVE_PX_FONT,
+        anchor='mm',
+        spacing=6,
+        align='center')
 
-    self._display_image(image, 5 if self.game_playbyplay else 10, matrix,
-                        debug_label)
+    if self.game_playbyplay:
+      for _ in range(5):
+        mins, secs = get_game_clock(self.game_playbyplay[-1]['clock'])
+        game_clock = self.manager.get_corrected_game_clock_text(self.game['gameId'], int(mins),
+                                                                int(secs))
+        image = draw_text(
+            image,
+            ip.center(),
+            ' \nQ{period}\n{clock}'.format(period=period, clock=game_clock),
+            fill=ImageColor.getrgb('#fff'),
+            font=FIVE_PX_FONT,
+            anchor='mm',
+            spacing=6,
+            align='center')
+      self._display_image(image, 1, matrix, debug_label)
+    else:
+      game_clock = get_game_clock_text(self.game['gameClock'])
+      image = draw_text(
+          image,
+          ip.center(),
+          ' \nQ{period}\n{clock}'.format(period=period, clock=game_clock),
+          fill=ImageColor.getrgb('#fff'),
+          font=FIVE_PX_FONT,
+          anchor='mm',
+          spacing=6,
+          align='center')
+      self._display_image(image, 10, matrix, debug_label)
 
 
 class Standings(Display):
@@ -322,19 +374,18 @@ class Standings(Display):
 
     # Text
     rank = self.standing['rank']
-    record = '{wins}-{losses}'.format(
-      wins=self.standing['wins'], losses=self.standing['losses'])
+    record = '{wins}-{losses}'.format(wins=self.standing['wins'], losses=self.standing['losses'])
     display_text = '{team}\n#{rank}\n{record}'.format(
-      team=team['abbreviation'], rank=rank, record=record)
+        team=team['abbreviation'], rank=rank, record=record)
     image = draw_text(
-      image,
-      ip.get(0.75, 0.5),
-      display_text,
-      fill=ImageColor.getrgb('#fff'),
-      font=SEVEN_PX_FONT_BOLD,
-      anchor='mm',
-      spacing=0,
-      align='center')
+        image,
+        ip.get(0.75, 0.5),
+        display_text,
+        fill=ImageColor.getrgb('#fff'),
+        font=SEVEN_PX_FONT_BOLD,
+        anchor='mm',
+        spacing=0,
+        align='center')
 
     self._display_image(image, 5, matrix, debug_label)
 

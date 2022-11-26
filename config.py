@@ -9,7 +9,7 @@
 # You can list teams by their abbreviation, full name, short name (e.g. Clippers), city, or state
 # Duplicates will be ignored.
 # Example: FAVORITE_TEAMS = ["CHI", "Cleveland Cavaliers", "Pacers", "Milwaukee", "Michigan"]
-FAVORITE_TEAMS = ["Hornets","Magic","Knicks"]
+FAVORITE_TEAMS = ["Hornets", "Magic", "Knicks"]
 
 # Your timezone
 # See valid timezones at the botom of this file

@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta, timezone
 from PIL import ImageTk
 import logging
-import time
 import sys
+import time
+import traceback
 
 
 class DisplayManager(object):
@@ -28,19 +29,17 @@ class DisplayManager(object):
         except KeyboardInterrupt:
           sys.exit()
         except Exception as e:
+          traceback.print_exc()
           logging.debug(e)
 
   def create_rgb_matrix(self):
-    raise NotImplementedError(
-      "create_rgb_matrix must be implemented by the subclass")
+    raise NotImplementedError("create_rgb_matrix must be implemented by the subclass")
 
   def create_debug_label(self):
-    raise NotImplementedError(
-      "create_debug_label must be implemented by the subclass")
+    raise NotImplementedError("create_debug_label must be implemented by the subclass")
 
   def get_displays_to_show():
-    raise NotImplementedError(
-      "get_displays_to_show must be implemented by the subclass")
+    raise NotImplementedError("get_displays_to_show must be implemented by the subclass")
 
   def _sleep_if_necessary(self):
     if self.start_day and self.stop_day:
@@ -48,8 +47,7 @@ class DisplayManager(object):
 
       # Weird checks
       checks = [
-        self.start_day > self.stop_day, current_day >= self.start_day,
-        current_day < self.stop_day
+          self.start_day > self.stop_day, current_day >= self.start_day, current_day < self.stop_day
       ]
       if len(filter(lambda x: x, checks)) < 2:
         days_to_sleep = self.start_day - current_day
@@ -65,13 +63,12 @@ class DisplayManager(object):
 
       # Weird checks
       checks = [
-        self.start_time > self.stop_time, current_time >= self.start_time,
-        current_time < self.stop_time
+          self.start_time > self.stop_time, current_time >= self.start_time,
+          current_time < self.stop_time
       ]
       if len(filter(lambda x: x, checks)) < 2:
-        seconds_to_sleep = (
-          datetime.combine(today_date, self.start_time) -
-          datetime.combine(today_date, current_time)).total_seconds()
+        seconds_to_sleep = (datetime.combine(today_date, self.start_time) -
+                            datetime.combine(today_date, current_time)).total_seconds()
         if seconds_to_sleep < 0:
           seconds_to_sleep += self._SECONDS_IN_DAY
         time.sleep(seconds_to_sleep + 30)

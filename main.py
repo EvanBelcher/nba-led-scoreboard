@@ -13,10 +13,11 @@ def main():
   show_display()
   # test_display()
 
-def show_display():  
+
+def show_display():
   dm = NBADisplayManager(FAVORITE_TEAMS)
   dm.start()
-  
+
 
 def test_display():
   game = get_game_by_id('0022000196')
