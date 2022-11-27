@@ -1,13 +1,12 @@
 from data.nba_data import *
-from display.display import Animation, Display, DisplayManager
-from logging import debug
+from display.display import Animation, Display, DisplayManager, Transition
 from PIL import Image, ImageColor, ImageDraw, ImageFont
 import logging
 import math
 import os
+import sys
 import tkinter as tk
 import traceback
-
 
 if os.name == 'nt':
 
@@ -111,6 +110,7 @@ class NBADisplayManager(DisplayManager):
     super().__init__(width=width, height=height)
     self.favorite_teams = favorite_teams
     self.live_game_times = {}
+    self.transitions = []
 
   def create_rgb_matrix(self):
     options = RGBMatrixOptions()
@@ -140,7 +140,7 @@ class NBADisplayManager(DisplayManager):
       return [ScreenSaver()]
 
   def _get_idle_displays(self, games):
-    # yield ScreenSaver()
+    yield ScreenSaver()
     for game in games:
       if not game_has_started(game):
         yield BeforeGame(game)
@@ -174,6 +174,9 @@ class BeforeGame(Display):
   def __init__(self, game):
     super().__init__()
     self.game = game
+
+  def get_pre_image(self, matrix, debug_label):
+    return Image.new("RGBA", (matrix.width, matrix.height), color='#000')
 
   def show(self, matrix, debug_label):
     image = Image.new("RGBA", (matrix.width, matrix.height), color='#000')
@@ -221,7 +224,7 @@ class AfterGame(Display):
     super().__init__()
     self.game = game
 
-  def show(self, matrix, debug_label):
+  def get_pre_image(self, matrix, debug_label):
     image = Image.new("RGBA", (matrix.width, matrix.height), color='#000')
     ip = ImagePlacement(matrix.width, matrix.height)
     draw = ImageDraw.Draw(image)
@@ -267,7 +270,10 @@ class AfterGame(Display):
         anchor='mm',
         spacing=-2,
         align='center')
+    return image
 
+  def show(self, matrix, debug_label):
+    image = self.get_pre_image(matrix, debug_label)
     self._display_image(image, 10, matrix, debug_label)
 
 
@@ -279,10 +285,9 @@ class LiveGame(Display):
     self.game_playbyplay = game_playbyplay
     self.manager = manager
 
-  def show(self, matrix, debug_label):
+  def get_pre_image(self, matrix, debug_label):
     image = Image.new("RGBA", (matrix.width, matrix.height), color='#000')
     ip = ImagePlacement(matrix.width, matrix.height)
-    draw = ImageDraw.Draw(image)
 
     teams = get_teams_from_game(self.game)
     team_1_name = teams[0]['abbreviation']
@@ -291,10 +296,8 @@ class LiveGame(Display):
     if self.game_playbyplay:
       team_1_score = int(self.game_playbyplay[-1]['scoreAway'])
       team_2_score = int(self.game_playbyplay[-1]['scoreHome'])
-      period = self.game_playbyplay[-1]['period']
     else:
       team_1_score, team_2_score = get_score_from_game(self.game)
-      period = self.game['period']
 
     # Team text
     image = draw_text(
@@ -326,14 +329,25 @@ class LiveGame(Display):
         anchor='mm',
         spacing=6,
         align='center')
+    return image
+
+  def show(self, matrix, debug_label):
+    image = self.get_pre_image(matrix, debug_label)
+    ip = ImagePlacement(matrix.width, matrix.height)
+
+    if self.game_playbyplay:
+      period = self.game_playbyplay[-1]['period']
+    else:
+      period = self.game['period']
 
     if self.game_playbyplay:
       for _ in range(5):
+        image_copy = image.copy()
         mins, secs = get_game_clock(self.game_playbyplay[-1]['clock'])
         game_clock = self.manager.get_corrected_game_clock_text(self.game['gameId'], int(mins),
                                                                 int(secs))
-        image = draw_text(
-            image,
+        image_copy = draw_text(
+            image_copy,
             ip.center(),
             ' \nQ{period}\n{clock}'.format(period=period, clock=game_clock),
             fill=ImageColor.getrgb('#fff'),
@@ -341,7 +355,7 @@ class LiveGame(Display):
             anchor='mm',
             spacing=6,
             align='center')
-      self._display_image(image, 1, matrix, debug_label)
+        self._display_image(image_copy, 1, matrix, debug_label)
     else:
       game_clock = get_game_clock_text(self.game['gameClock'])
       image = draw_text(
@@ -362,7 +376,7 @@ class Standings(Display):
     super().__init__()
     self.standing = standing
 
-  def show(self, matrix, debug_label):
+  def get_pre_image(self, matrix, debug_label):
     image = Image.new("RGBA", (matrix.width, matrix.height), color='#000')
     ip = ImagePlacement(matrix.width, matrix.height)
     draw = ImageDraw.Draw(image)
@@ -387,6 +401,10 @@ class Standings(Display):
         spacing=0,
         align='center')
 
+    return image
+
+  def show(self, matrix, debug_label):
+    image = self.get_pre_image(matrix, debug_label)
     self._display_image(image, 5, matrix, debug_label)
 
 
@@ -394,3 +412,26 @@ class ScreenSaver(Display):
 
   def show(self, matrix, debug_label):
     self._display_image(get_nba_logo(), 10, matrix, debug_label)
+
+
+# Transitions
+
+
+class FadeTransition(Transition):
+  pass
+
+
+class PushTransition(Transition):
+  pass
+
+
+class CoverTransition(Transition):
+  pass
+
+
+class ZoomTransition(Transition):
+  pass
+
+
+class ShredTransition(Transition):
+  pass

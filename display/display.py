@@ -4,6 +4,7 @@ import logging
 import sys
 import time
 import traceback
+import random
 
 
 class DisplayManager(object):
@@ -18,14 +19,20 @@ class DisplayManager(object):
     self.time_zone = timezone.utc
     self.rgb_matrix = self.create_rgb_matrix()
     self.debug_label = self.create_debug_label()
+    self.transitions = []
 
   def start(self):
     while True:
       self._sleep_if_necessary()
       self._run_scheduled_actions()
-      for display in self.get_displays_to_show():
+      displays_to_show = self.get_displays_to_show()
+      for index, display in enumerate(displays_to_show):
         try:
           display.show(self.rgb_matrix, self.debug_label)
+          if self.transitions and index != len(displays_to_show) - 1:
+            self.show_transition(
+                display.current_image,
+                displays_to_show[index + 1].get_pre_image(self.rgb_matrix, self.debug_label))
         except KeyboardInterrupt:
           sys.exit()
         except Exception as e:
@@ -104,11 +111,20 @@ class DisplayManager(object):
   def schedule_action(self, action_datetime, action_func):
     self.scheduled_actions.append((action_datetime, action_func))
 
+  def show_transition(self, start_img, end_img, transition_num=None):
+    if transition_num is None:
+      transition_num = random.randint(0, len(self.transitions) - 1)
+    transition = self.transitions[transition_num](start_img, end_img)
+    transition.show(self.rgb_matrix, self.debug_label)
+
 
 class Display(object):
 
   def __init__(self):
     pass
+
+  def get_pre_image(self, matrix, debug_label):
+    raise NotImplementedError("Subclasses must implement get_pre_image()")
 
   def show(self, matrix, debug_label):
     raise NotImplementedError("Subclasses must implement show()")
@@ -125,6 +141,7 @@ class Display(object):
     debug_label.master.update()
 
   def _display_image(self, image, display_secs, matrix, debug_label):
+    self.current_image = image
     self._debug_image(image, debug_label)
     time.sleep(display_secs)
 
@@ -135,6 +152,9 @@ class Animation(Display):
     super().__init__()
     self.framerate = framerate
     self.frames = list()
+
+  def get_pre_image(self, matrix, debug_label):
+    return self.frames[0]
 
   def show(self, matrix, debug_label):
     if len(self.frames) == 0:
@@ -147,3 +167,15 @@ class Animation(Display):
 
   def add_frames(self, frames):
     self.frames.extend(frames)
+
+
+class Transition(Animation):
+
+  def __init__(self, start_img, end_img, framerate=30):
+    super().__init__(framerate=framerate)
+    self.start_img = start_img
+    self.end_img = end_img
+    self.add_frames(self.get_transition_frames())
+
+  def get_transition_frames(self):
+    raise NotImplementedError("Subclasses must implement get_transition_frames()")

@@ -1,7 +1,6 @@
 from data.nba_data import *
-from display.nba_display import AfterGame, BeforeGame, LiveGame, ScreenSaver, Standings, NBADisplayManager
+from display.nba_display import AfterGame, BeforeGame, LiveGame, NBADisplayManager, ScreenSaver, Standings
 import logging
-import tkinter as tk
 
 MAIN_LOG_LEVEL = logging.DEBUG  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
@@ -10,8 +9,8 @@ def main():
   logging.basicConfig()
   logging.getLogger().setLevel(MAIN_LOG_LEVEL)
 
-  show_display()
-  # test_display()
+  # show_display()
+  test_display()
 
 
 def show_display():
@@ -24,20 +23,17 @@ def test_display():
   pbp = get_playbyplay_for_game(game)
   standings = get_standings()
 
+  dm = NBADisplayManager(FAVORITE_TEAM_NAMES)
+
   before = BeforeGame(game)
   after = AfterGame(game)
   live = LiveGame(game)
-  live_important = LiveGame(game, pbp[:len(pbp) // 2])
+  live_important = LiveGame(game, pbp[:len(pbp) // 2], dm)
   standing = Standings(standings[5])
   screensaver = ScreenSaver()
 
-  debug_tk = tk.Tk()
-  debug_tk.title('Debug display')
-  debug_tk.geometry('640x320')
-  label = tk.Label(debug_tk)
-
   for display in [before, after, live, live_important, standing, screensaver]:
-    display.show(Matrix(), label)
+    display.show(dm.rgb_matrix, dm.debug_label)
 
 
 class Matrix(object):
