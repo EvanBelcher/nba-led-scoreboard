@@ -9,8 +9,8 @@ def main():
   logging.basicConfig()
   logging.getLogger().setLevel(MAIN_LOG_LEVEL)
 
-  # show_display()
-  test_display()
+  show_display()
+  # test_display()
 
 
 def show_display():

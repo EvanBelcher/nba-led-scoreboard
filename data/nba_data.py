@@ -39,7 +39,9 @@ def get_game_datetime(game):
 
 
 def game_has_started(game):
-  return datetime.now(tz=pytz.timezone(TIMEZONE)) >= get_game_datetime(game)
+  if datetime.now(tz=pytz.timezone(TIMEZONE)) < get_game_datetime(game):
+    return False
+  return game['period'] > 0
 
 
 def game_is_live(game):
@@ -124,23 +126,8 @@ def get_game_by_id(game_id, cache_time=timedelta(minutes=10), cache_override=Fal
   return _get_game_by_id(game_id, time.time() // cache_time.total_seconds())
 
 
-@lru_cache(maxsize=30)
-@RateLimiter(max_calls=1, period=5)
-def _game_has_ended(game_id, ttl_hash):
-  game = get_game_by_id(game_id)
-  if datetime.now(tz=pytz.timezone(TIMEZONE)) > get_game_datetime(game) + timedelta(hours=4):
-    # Game started 4 hours ago. It must be over.
-    return True
-  if any(action['actionType'] == 'game' for action in get_playbyplay_for_game(game)):
-    # Game has ended
-    return True
-  return False
-
-
-def game_has_ended(game, cache_time=timedelta(minutes=10), cache_override=False):
-  if cache_override:
-    return _game_has_ended(game['gameId'], -time.time())
-  return _game_has_ended(game['gameId'], time.time() // cache_time.total_seconds())
+def game_has_ended(game):
+  return game['gameStatusText'] == 'Final'
 
 
 @lru_cache(maxsize=1)

@@ -29,7 +29,7 @@ class DisplayManager(object):
       for index, display in enumerate(displays_to_show):
         try:
           display.show(self.rgb_matrix, self.debug_label)
-          if self.transitions and index != len(displays_to_show) - 1:
+          if self.transitions and len(displays_to_show) > 1 and index != len(displays_to_show) - 1:
             self.show_transition(
                 display.current_image,
                 displays_to_show[index + 1].get_pre_image(self.rgb_matrix, self.debug_label))
@@ -114,7 +114,12 @@ class DisplayManager(object):
   def show_transition(self, start_img, end_img, transition_num=None):
     if transition_num is None:
       transition_num = random.randint(0, len(self.transitions) - 1)
-    transition = self.transitions[transition_num](start_img, end_img)
+    if isinstance(self.transitions[transition_num], tuple):
+      transition_class, args, kwargs = self.transitions[transition_num]
+      transition = transition_class(start_img, end_img, *args, **kwargs)
+    else:
+      transition_class = self.transitions[transition_num]
+      transition = transition_class(start_img, end_img)
     transition.show(self.rgb_matrix, self.debug_label)
 
 
@@ -129,6 +134,10 @@ class Display(object):
   def show(self, matrix, debug_label):
     raise NotImplementedError("Subclasses must implement show()")
 
+  def _update(self, debug_label):
+    debug_label.master.update_idletasks()
+    debug_label.master.update()
+
   def _debug_image(self, image, debug_label):
     # image.save('assets/testing/%d.png' % time.time())
     big_img = image.resize((image.width * 10, image.height * 10))
@@ -137,13 +146,21 @@ class Display(object):
     debug_label.image = photo  # keep a reference
     debug_label.pack()
 
-    debug_label.master.update_idletasks()
-    debug_label.master.update()
+    self._update(debug_label)
 
   def _display_image(self, image, display_secs, matrix, debug_label):
     self.current_image = image
     self._debug_image(image, debug_label)
-    time.sleep(display_secs)
+
+    display_full_secs = int(display_secs // 1)
+    display_part_secs = display_secs - display_full_secs
+
+    for _ in range(0, display_full_secs):
+      for _ in range(10):
+        time.sleep(0.1)
+        self._update(debug_label)
+    time.sleep(display_part_secs)
+    self._update(debug_label)
 
 
 class Animation(Display):
@@ -156,6 +173,9 @@ class Animation(Display):
   def get_pre_image(self, matrix, debug_label):
     return self.frames[0]
 
+  def get_post_image(self, matrix, debug_label):
+    return self.frames[-1]
+
   def show(self, matrix, debug_label):
     if len(self.frames) == 0:
       raise NotImplementedError("Subclasses must define at least one frame")
@@ -166,7 +186,7 @@ class Animation(Display):
     self.frames.append(frame)
 
   def add_frames(self, frames):
-    self.frames.extend(frames)
+    self.frames.extend(list(frames))
 
 
 class Transition(Animation):

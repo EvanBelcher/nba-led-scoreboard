@@ -3,10 +3,12 @@ from display.display import Animation, Display, DisplayManager, Transition
 from PIL import Image, ImageColor, ImageDraw, ImageFont
 import logging
 import math
+import numpy as np
 import os
 import sys
 import tkinter as tk
 import traceback
+import random
 
 if os.name == 'nt':
 
@@ -81,36 +83,13 @@ def draw_text(img, *args, **kwargs):
   return Image.alpha_composite(img, clear_bg)
 
 
-def slide_img(matrix, debug_label, img, final_loc, base_img=Image.new('RGB', (64, 32)), steps=60):
-  ip = ImagePlacement(base_img.width, base_img.height)
-
-  start_loc = ip.with_offset((-img.width // 2, -img.height // 2)).center()
-  dx = (final_loc[0] - start_loc[0]) / steps
-  dy = (final_loc[1] - start_loc[1]) / steps
-
-  animation = Animation()
-  last_frame = None
-
-  for step in range(steps + 1):
-    paste_x = math.floor(start_loc[0] + step * dx)
-    paste_y = math.floor(start_loc[1] + step * dy)
-
-    frame = base_img.copy()
-    frame.paste(img, (paste_x, paste_y))
-    animation.add_frame(frame)
-    last_frame = frame
-
-  animation.show(matrix, debug_label)
-  return last_frame
-
-
 class NBADisplayManager(DisplayManager):
 
   def __init__(self, favorite_teams, width=64, height=32):
     super().__init__(width=width, height=height)
     self.favorite_teams = favorite_teams
     self.live_game_times = {}
-    self.transitions = []
+    self.transitions = [FadeTransition, PushTransition, CoverTransition, ShredTransition]
 
   def create_rgb_matrix(self):
     options = RGBMatrixOptions()
@@ -169,6 +148,9 @@ class NBADisplayManager(DisplayManager):
     return f'{mins}:{secs}'
 
 
+# ============= DISPLAYS =============
+
+
 class BeforeGame(Display):
 
   def __init__(self, game):
@@ -187,10 +169,15 @@ class BeforeGame(Display):
     teams = get_teams_from_game(self.game)
     logos = [get_team_logo(team['id']) for team in teams]
 
-    image = slide_img(
-        matrix, debug_label, logos[0], ip.with_v_offset().get(-0.25, 0), base_img=image, steps=20)
-    image = slide_img(
-        matrix, debug_label, logos[1], ip.with_v_offset().get(0.78, 0), base_img=image, steps=20)
+    slide_logo1 = SlideAnimation(
+        logos[0], ip.with_v_offset().get(-0.25, 0), base_image=image, steps=20)
+    slide_logo1.show(matrix, debug_label)
+    image = slide_logo1.get_post_image(matrix, debug_label)
+
+    slide_logo2 = SlideAnimation(
+        logos[1], ip.with_v_offset().get(0.78, 0), base_image=image, steps=20)
+    slide_logo2.show(matrix, debug_label)
+    image = slide_logo2.get_post_image(matrix, debug_label)
 
     if os.name == 'nt':
       format_str = '@%I:%M'
@@ -274,6 +261,8 @@ class AfterGame(Display):
 
   def show(self, matrix, debug_label):
     image = self.get_pre_image(matrix, debug_label)
+    flash = FlashAnimation(image)
+    flash.show(matrix, debug_label)
     self._display_image(image, 10, matrix, debug_label)
 
 
@@ -336,27 +325,30 @@ class LiveGame(Display):
     ip = ImagePlacement(matrix.width, matrix.height)
 
     if self.game_playbyplay:
-      period = self.game_playbyplay[-1]['period']
+      while not game_has_ended(self.game):
+        period = self.game_playbyplay[-1]['period']
+        for i in range(10):
+          image_copy = image.copy()
+          mins, secs = get_game_clock(self.game_playbyplay[-1]['clock'])
+          game_clock = self.manager.get_corrected_game_clock_text(self.game['gameId'], int(mins),
+                                                                  int(secs))
+          image_copy = draw_text(
+              image_copy,
+              ip.center(),
+              ' \nQ{period}\n{clock}'.format(period=period, clock=game_clock),
+              fill=ImageColor.getrgb('#fff'),
+              font=FIVE_PX_FONT,
+              anchor='mm',
+              spacing=6,
+              align='center')
+          self._display_image(image_copy, 1, matrix, debug_label)
+
+          if i == 8:
+            self.game_playbyplay = get_playbyplay_for_game(self.game)
+            image = self.get_pre_image(matrix, debug_label)
+
     else:
       period = self.game['period']
-
-    if self.game_playbyplay:
-      for _ in range(5):
-        image_copy = image.copy()
-        mins, secs = get_game_clock(self.game_playbyplay[-1]['clock'])
-        game_clock = self.manager.get_corrected_game_clock_text(self.game['gameId'], int(mins),
-                                                                int(secs))
-        image_copy = draw_text(
-            image_copy,
-            ip.center(),
-            ' \nQ{period}\n{clock}'.format(period=period, clock=game_clock),
-            fill=ImageColor.getrgb('#fff'),
-            font=FIVE_PX_FONT,
-            anchor='mm',
-            spacing=6,
-            align='center')
-        self._display_image(image_copy, 1, matrix, debug_label)
-    else:
       game_clock = get_game_clock_text(self.game['gameClock'])
       image = draw_text(
           image,
@@ -414,19 +406,128 @@ class ScreenSaver(Display):
     self._display_image(get_nba_logo(), 10, matrix, debug_label)
 
 
-# Transitions
+# ============= ANIMATIONS =============
+
+
+class SlideAnimation(Animation):
+
+  def __init__(self,
+               image,
+               final_loc,
+               base_image=Image.new('RGB', (64, 32)),
+               steps=60,
+               framerate=30):
+    super().__init__(framerate=framerate)
+    self.add_frames(self.get_animation_frames(image, final_loc, base_image, steps))
+
+  def get_animation_frames(self, image, final_loc, base_image, steps):
+    ip = ImagePlacement(base_image.width, base_image.height)
+    start_loc = ip.with_offset((-image.width // 2, -image.height // 2)).center()
+    dx = (final_loc[0] - start_loc[0]) / steps
+    dy = (final_loc[1] - start_loc[1]) / steps
+
+    for step in range(steps + 1):
+      paste_x = math.floor(start_loc[0] + step * dx)
+      paste_y = math.floor(start_loc[1] + step * dy)
+
+      frame = base_image.copy()
+      frame.paste(image, (paste_x, paste_y))
+      yield frame
+
+
+class FlashAnimation(Animation):
+
+  def __init__(self, image, flash_rate=3, flash_count=3, framerate=30):
+    super().__init__(framerate=framerate)
+    self.add_frames(self.get_animation_frames(image, flash_rate, flash_count))
+
+  def get_animation_frames(self, image, flash_rate, flash_count):
+    black_screen = Image.new("RGBA", (image.width, image.height), color='#000')
+    for _ in range(flash_count):
+      for _ in range(flash_rate):
+        yield image
+      for _ in range(flash_rate):
+        yield black_screen
+    for _ in range(flash_rate):
+      yield image
+
+
+# ============= TRANSITIONS =============
 
 
 class FadeTransition(Transition):
-  pass
+  def __init__(self, start_img, end_img, duration=14, framerate=30):
+    self.duration=duration
+    super().__init__(start_img, end_img, framerate=framerate)
+    
+  
+  def get_transition_frames(self):
+    delta = 255/(self.duration/2)
+    for i in range(1, int(self.duration/2+1)):
+      img = self.start_img.copy()
+      color = int(delta*i)
+      img.paste(Image.new("RGBA", (img.width, img.height), color='#000'), mask=Image.new("RGBA", (img.width, img.height), color=(color, color, color, color)))
+      yield img
+    for i in range(1, int(self.duration/2+1)):
+      img = Image.new("RGBA", (self.start_img.width, self.start_img.height), color='#000')
+      color = int(delta*i)
+      img.paste(self.end_img, mask=Image.new("RGBA", (img.width, img.height), color=(color, color, color, color)))
+      yield img
 
 
 class PushTransition(Transition):
-  pass
+  def __init__(self, start_img, end_img, framerate=30, x_direction=None, y_direction=None, duration=14):
+    if x_direction is None:
+      x_direction = random.randint(-1, 1)
+    if y_direction is None:
+      y_direction = random.randint(-1, 1)
+    if not x_direction and not y_direction:
+      x_direction = 1
+    self.x_direction = x_direction
+    self.y_direction = y_direction
+    self.duration = duration
+    super().__init__(start_img, end_img, framerate=framerate)
+
+  def get_transition_frames(self):
+    ip = ImagePlacement(self.start_img.width, self.start_img.height)
+    start_pos_x, start_pos_y = ip.with_offset((self.x_direction, self.y_direction)).get(self.x_direction, self.y_direction)
+
+    delta_x = int(-start_pos_x / self.duration)
+    delta_y = int(-start_pos_y / self.duration)
+
+    for i in range(0, self.duration):
+      image = Image.new("RGBA", (self.start_img.width, self.start_img.height), color='#000')
+      image.paste(self.start_img, box=(delta_x*i, delta_y*i))
+      image.paste(self.end_img, box=(start_pos_x + delta_x*i, start_pos_y + delta_y*i))
+      yield image
+    yield self.end_img
 
 
 class CoverTransition(Transition):
-  pass
+  def __init__(self, start_img, end_img, framerate=30, x_direction=None, y_direction=None, duration=14):
+    if x_direction is None:
+      x_direction = random.randint(-1, 1)
+    if y_direction is None:
+      y_direction = random.randint(-1, 1)
+    if not x_direction and not y_direction:
+      x_direction = 1
+    self.x_direction = x_direction
+    self.y_direction = y_direction
+    self.duration = duration
+    super().__init__(start_img, end_img, framerate=framerate)
+
+  def get_transition_frames(self):
+    ip = ImagePlacement(self.start_img.width, self.start_img.height)
+    start_pos_x, start_pos_y = ip.with_offset((self.x_direction, self.y_direction)).get(self.x_direction, self.y_direction)
+
+    delta_x = int(-start_pos_x / self.duration)
+    delta_y = int(-start_pos_y / self.duration)
+
+    for i in range(0, self.duration):
+      image = self.start_img.copy()
+      image.paste(self.end_img, box=(start_pos_x + delta_x*i, start_pos_y + delta_y*i))
+      yield image
+    yield self.end_img
 
 
 class ZoomTransition(Transition):
@@ -434,4 +535,37 @@ class ZoomTransition(Transition):
 
 
 class ShredTransition(Transition):
-  pass
+  def __init__(self, start_img, end_img, framerate=30, direction=None, duration=20):
+    if direction is None:
+      direction = random.randint(0, 1)
+    self.direction = direction
+    self.duration = duration
+    super().__init__(start_img, end_img, framerate=framerate)
+
+  def get_transition_frames(self):
+    if self.start_img.width != 64 or self.start_img.height != 32:
+      return []
+    if self.direction == 0:
+      mask1 = Image.open('assets/vmask1.png')
+      mask2 = Image.open('assets/vmask2.png')
+      delta_x = 0
+      delta_y = int(self.start_img.height / (self.duration / 2))
+    else:
+      mask1 = Image.open('assets/hmask1.png')
+      mask2 = Image.open('assets/hmask2.png')
+      delta_x = int(self.start_img.width / (self.duration / 2))
+      delta_y = 0
+
+    for i in range(0, self.duration//2):
+      image = Image.new("RGBA", (self.start_img.width, self.start_img.height), color='#000')
+
+      image.paste(self.start_img, box=(delta_x*i, delta_y*i), mask=mask1)
+      image.paste(self.start_img, box=(-delta_x*i, -delta_y*i), mask=mask2)
+      yield image
+    for i in range(self.duration//2, 0, -1):
+      image = Image.new("RGBA", (self.start_img.width, self.start_img.height), color='#000')
+
+      image.paste(self.end_img, box=(delta_x*i, delta_y*i), mask=mask1)
+      image.paste(self.end_img, box=(-delta_x*i, -delta_y*i), mask=mask2)
+      yield image
+    yield self.end_img
