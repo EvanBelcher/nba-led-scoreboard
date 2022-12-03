@@ -325,6 +325,8 @@ class LiveGame(Display):
     ip = ImagePlacement(matrix.width, matrix.height)
 
     if self.game_playbyplay:
+      # start thread to update playbyplay
+      
       while not game_has_ended(self.game):
         period = self.game_playbyplay[-1]['period']
         for i in range(10):
