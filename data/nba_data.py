@@ -65,6 +65,11 @@ def get_nba_logo():
     return bg_img
 
 
+def get_basketball_img(size=32):
+  with Image.open('assets/basketball.png') as basketball_img:
+    return basketball_img.resize((size, size), resample=Image.HAMMING)
+
+
 def get_important_games(favorite_teams):
   important_games = []
   for game in get_games_for_today():
@@ -162,13 +167,21 @@ def get_games_for_today(cache_time=timedelta(minutes=10), cache_override=False):
 @RateLimiter(max_calls=1, period=5)
 def _get_playbyplay_for_game(game_id, ttl_hash):
   game = get_game_by_id(game_id)
-  return playbyplay.PlayByPlay(game['gameId']).get_dict()['game']['actions']
+  return playbyplay.PlayByPlay(game['gameId']).get_dict()['game']
 
 
-def get_playbyplay_for_game(game, cache_time=timedelta(seconds=5), cache_override=False):
+def get_playbyplay_for_game(game,
+                            cache_time=timedelta(seconds=5),
+                            cache_override=False,
+                            actions=True):
   if cache_override:
-    return _get_playbyplay_for_game(game['gameId'], -time.time())
-  return _get_playbyplay_for_game(game['gameId'], time.time() // cache_time.total_seconds())
+    pbp = _get_playbyplay_for_game(game['gameId'], -time.time())
+  else:
+    pbp = _get_playbyplay_for_game(game['gameId'], time.time() // cache_time.total_seconds())
+
+  if actions:
+    return pbp['actions']
+  return pbp
 
 
 @lru_cache(maxsize=1)

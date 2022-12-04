@@ -1,11 +1,13 @@
 from data.nba_data import *
 from display.display import Animation, Display, DisplayManager, Transition
 from PIL import Image, ImageColor, ImageDraw, ImageFont
+import config
 import logging
 import math
 import numpy as np
 import os
 import sys
+import threading
 import tkinter as tk
 import traceback
 import random
@@ -33,10 +35,10 @@ class ImagePlacement:
     self.h_offset, self.v_offset = offset
 
   def h(self, placement):
-    return round(self.width * placement) + self.h_offset
+    return int(round(self.width * placement) + self.h_offset)
 
   def v(self, placement):
-    return round(self.height * placement) + self.v_offset
+    return int(round(self.height * placement) + self.v_offset)
 
   def get(self, h_placement, v_placement):
     return (self.h(h_placement), self.v(v_placement))
@@ -89,7 +91,9 @@ class NBADisplayManager(DisplayManager):
     super().__init__(width=width, height=height)
     self.favorite_teams = favorite_teams
     self.live_game_times = {}
-    self.transitions = [FadeTransition, PushTransition, CoverTransition, ShredTransition]
+    self.transitions = [
+        FadeTransition, PushTransition, CoverTransition, ShredTransition, BallTransition
+    ]
 
   def create_rgb_matrix(self):
     options = RGBMatrixOptions()
@@ -131,17 +135,20 @@ class NBADisplayManager(DisplayManager):
       yield Standings(standing)
 
   def get_corrected_game_clock_text(self, game_id, mins, secs):
-    last_time, game_mins, game_secs = self.live_game_times.setdefault(game_id, (0, 0, 0))
-    if game_mins == mins and game_secs == secs:
-      elapsed_seconds = int(time.time() - last_time)
-      secs -= elapsed_seconds
-      while secs < 0:
-        secs += 60
-        mins -= 1
-      if mins < 0:
-        mins = 0
-    else:
-      self.live_game_times[game_id] = (time.time(), mins, secs)
+    if config.CLOCK_COUNTDOWN:
+      last_time, game_mins, game_secs = self.live_game_times.setdefault(game_id, (0, 0, 0))
+      if game_mins == mins and game_secs == secs:
+        elapsed_seconds = int(time.time() - last_time)
+        secs -= elapsed_seconds
+        while secs < 0 and mins > 0:
+          secs += 60
+          mins -= 1
+        if mins < 0:
+          mins = 0
+        if secs < 0:
+          secs = 0
+      else:
+        self.live_game_times[game_id] = (time.time(), mins, secs)
     secs = str(secs)
     if len(secs) == 1:
       secs = f'0{secs}'
@@ -261,8 +268,14 @@ class AfterGame(Display):
 
   def show(self, matrix, debug_label):
     image = self.get_pre_image(matrix, debug_label)
-    flash = FlashAnimation(image)
-    flash.show(matrix, debug_label)
+
+    teams = get_teams_from_game(self.game)
+    team_1_name = teams[0]['nickname']
+    team_2_name = teams[1]['nickname']
+
+    if team_1_name in FAVORITE_TEAM_NAMES or team_2_name in FAVORITE_TEAM_NAMES:
+      flash = FlashAnimation(image)
+      flash.show(matrix, debug_label)
     self._display_image(image, 10, matrix, debug_label)
 
 
@@ -282,31 +295,30 @@ class LiveGame(Display):
     team_1_name = teams[0]['abbreviation']
     team_2_name = teams[1]['abbreviation']
 
-    if self.game_playbyplay:
-      team_1_score = int(self.game_playbyplay[-1]['scoreAway'])
-      team_2_score = int(self.game_playbyplay[-1]['scoreHome'])
-    else:
+    if not self.game_playbyplay:
       team_1_score, team_2_score = get_score_from_game(self.game)
 
-    # Team text
-    image = draw_text(
-        image,
-        ip.with_h_offset().get(1 / 6, 0.5),
-        '{team_1_name}\n{team_1_score}'.format(team_1_name=team_1_name, team_1_score=team_1_score),
-        fill=ImageColor.getrgb('#fff'),
-        font=SEVEN_PX_FONT_BOLD,
-        anchor='mm',
-        spacing=6,
-        align='center' if team_1_score < 100 else 'left')
-    image = draw_text(
-        image,
-        ip.with_h_offset(-1).get(5 / 6, 0.5),
-        '{team_2_name}\n{team_2_score}'.format(team_2_name=team_2_name, team_2_score=team_2_score),
-        fill=ImageColor.getrgb('#fff'),
-        font=SEVEN_PX_FONT_BOLD,
-        anchor='mm',
-        spacing=6,
-        align='center' if team_2_score < 100 else 'right')
+      # Team text
+      image = draw_text(
+          image,
+          ip.with_h_offset().get(1 / 6, 0.5),
+          '{team_1_name}\n{team_1_score}'.format(
+              team_1_name=team_1_name, team_1_score=team_1_score),
+          fill=ImageColor.getrgb('#fff'),
+          font=SEVEN_PX_FONT_BOLD,
+          anchor='mm',
+          spacing=6,
+          align='center' if team_1_score < 100 else 'left')
+      image = draw_text(
+          image,
+          ip.with_h_offset(-1).get(5 / 6, 0.5),
+          '{team_2_name}\n{team_2_score}'.format(
+              team_2_name=team_2_name, team_2_score=team_2_score),
+          fill=ImageColor.getrgb('#fff'),
+          font=SEVEN_PX_FONT_BOLD,
+          anchor='mm',
+          spacing=6,
+          align='center' if team_2_score < 100 else 'right')
 
     # Game text
     image = draw_text(
@@ -325,15 +337,44 @@ class LiveGame(Display):
     ip = ImagePlacement(matrix.width, matrix.height)
 
     if self.game_playbyplay:
-      # start thread to update playbyplay
-      
-      while not game_has_ended(self.game):
-        period = self.game_playbyplay[-1]['period']
-        for i in range(10):
+      with PlayByPlayUpdateThread(self.game, self.game_playbyplay) as update_thread:
+        teams = get_teams_from_game(self.game)
+        team_1_name = teams[0]['abbreviation']
+        team_2_name = teams[1]['abbreviation']
+
+        while not game_has_ended(update_thread.game):
           image_copy = image.copy()
-          mins, secs = get_game_clock(self.game_playbyplay[-1]['clock'])
-          game_clock = self.manager.get_corrected_game_clock_text(self.game['gameId'], int(mins),
-                                                                  int(secs))
+
+          team_1_score = int(update_thread.playbyplay[-1]['scoreAway'])
+          team_2_score = int(update_thread.playbyplay[-1]['scoreHome'])
+
+          # Team text
+          image_copy = draw_text(
+              image_copy,
+              ip.with_h_offset().get(1 / 6, 0.5),
+              '{team_1_name}\n{team_1_score}'.format(
+                  team_1_name=team_1_name, team_1_score=team_1_score),
+              fill=ImageColor.getrgb('#fff'),
+              font=SEVEN_PX_FONT_BOLD,
+              anchor='mm',
+              spacing=6,
+              align='center')
+          image_copy = draw_text(
+              image_copy,
+              ip.with_h_offset(-1).get(5 / 6, 0.5),
+              '{team_2_name}\n{team_2_score}'.format(
+                  team_2_name=team_2_name, team_2_score=team_2_score),
+              fill=ImageColor.getrgb('#fff'),
+              font=SEVEN_PX_FONT_BOLD,
+              anchor='mm',
+              spacing=6,
+              align='center')
+
+          period = update_thread.playbyplay[-1]['period']
+          mins, secs = get_game_clock(update_thread.playbyplay[-1]['clock'])
+          game_clock = self.manager.get_corrected_game_clock_text(update_thread.game['gameId'],
+                                                                  int(mins), int(secs))
+
           image_copy = draw_text(
               image_copy,
               ip.center(),
@@ -345,9 +386,7 @@ class LiveGame(Display):
               align='center')
           self._display_image(image_copy, 1, matrix, debug_label)
 
-          if i == 8:
-            self.game_playbyplay = get_playbyplay_for_game(self.game)
-            image = self.get_pre_image(matrix, debug_label)
+        update_thread.exitSignal = 1
 
     else:
       period = self.game['period']
@@ -458,27 +497,38 @@ class FlashAnimation(Animation):
 
 
 class FadeTransition(Transition):
+
   def __init__(self, start_img, end_img, duration=14, framerate=30):
-    self.duration=duration
+    self.duration = duration
     super().__init__(start_img, end_img, framerate=framerate)
-    
-  
+
   def get_transition_frames(self):
-    delta = 255/(self.duration/2)
-    for i in range(1, int(self.duration/2+1)):
+    delta = 255 / (self.duration / 2)
+    for i in range(1, int(self.duration / 2 + 1)):
       img = self.start_img.copy()
-      color = int(delta*i)
-      img.paste(Image.new("RGBA", (img.width, img.height), color='#000'), mask=Image.new("RGBA", (img.width, img.height), color=(color, color, color, color)))
+      color = int(delta * i)
+      img.paste(
+          Image.new("RGBA", (img.width, img.height), color='#000'),
+          mask=Image.new("RGBA", (img.width, img.height), color=(color, color, color, color)))
       yield img
-    for i in range(1, int(self.duration/2+1)):
+    for i in range(1, int(self.duration / 2 + 1)):
       img = Image.new("RGBA", (self.start_img.width, self.start_img.height), color='#000')
-      color = int(delta*i)
-      img.paste(self.end_img, mask=Image.new("RGBA", (img.width, img.height), color=(color, color, color, color)))
+      color = int(delta * i)
+      img.paste(
+          self.end_img,
+          mask=Image.new("RGBA", (img.width, img.height), color=(color, color, color, color)))
       yield img
 
 
 class PushTransition(Transition):
-  def __init__(self, start_img, end_img, framerate=30, x_direction=None, y_direction=None, duration=14):
+
+  def __init__(self,
+               start_img,
+               end_img,
+               framerate=30,
+               x_direction=None,
+               y_direction=None,
+               duration=14):
     if x_direction is None:
       x_direction = random.randint(-1, 1)
     if y_direction is None:
@@ -492,21 +542,29 @@ class PushTransition(Transition):
 
   def get_transition_frames(self):
     ip = ImagePlacement(self.start_img.width, self.start_img.height)
-    start_pos_x, start_pos_y = ip.with_offset((self.x_direction, self.y_direction)).get(self.x_direction, self.y_direction)
+    start_pos_x, start_pos_y = ip.with_offset(
+        (self.x_direction, self.y_direction)).get(self.x_direction, self.y_direction)
 
     delta_x = int(-start_pos_x / self.duration)
     delta_y = int(-start_pos_y / self.duration)
 
     for i in range(0, self.duration):
       image = Image.new("RGBA", (self.start_img.width, self.start_img.height), color='#000')
-      image.paste(self.start_img, box=(delta_x*i, delta_y*i))
-      image.paste(self.end_img, box=(start_pos_x + delta_x*i, start_pos_y + delta_y*i))
+      image.paste(self.start_img, box=(delta_x * i, delta_y * i))
+      image.paste(self.end_img, box=(start_pos_x + delta_x * i, start_pos_y + delta_y * i))
       yield image
     yield self.end_img
 
 
 class CoverTransition(Transition):
-  def __init__(self, start_img, end_img, framerate=30, x_direction=None, y_direction=None, duration=14):
+
+  def __init__(self,
+               start_img,
+               end_img,
+               framerate=30,
+               x_direction=None,
+               y_direction=None,
+               duration=14):
     if x_direction is None:
       x_direction = random.randint(-1, 1)
     if y_direction is None:
@@ -520,14 +578,15 @@ class CoverTransition(Transition):
 
   def get_transition_frames(self):
     ip = ImagePlacement(self.start_img.width, self.start_img.height)
-    start_pos_x, start_pos_y = ip.with_offset((self.x_direction, self.y_direction)).get(self.x_direction, self.y_direction)
+    start_pos_x, start_pos_y = ip.with_offset(
+        (self.x_direction, self.y_direction)).get(self.x_direction, self.y_direction)
 
     delta_x = int(-start_pos_x / self.duration)
     delta_y = int(-start_pos_y / self.duration)
 
     for i in range(0, self.duration):
       image = self.start_img.copy()
-      image.paste(self.end_img, box=(start_pos_x + delta_x*i, start_pos_y + delta_y*i))
+      image.paste(self.end_img, box=(start_pos_x + delta_x * i, start_pos_y + delta_y * i))
       yield image
     yield self.end_img
 
@@ -537,6 +596,7 @@ class ZoomTransition(Transition):
 
 
 class ShredTransition(Transition):
+
   def __init__(self, start_img, end_img, framerate=30, direction=None, duration=20):
     if direction is None:
       direction = random.randint(0, 1)
@@ -558,16 +618,71 @@ class ShredTransition(Transition):
       delta_x = int(self.start_img.width / (self.duration / 2))
       delta_y = 0
 
-    for i in range(0, self.duration//2):
+    for i in range(0, self.duration // 2):
       image = Image.new("RGBA", (self.start_img.width, self.start_img.height), color='#000')
 
-      image.paste(self.start_img, box=(delta_x*i, delta_y*i), mask=mask1)
-      image.paste(self.start_img, box=(-delta_x*i, -delta_y*i), mask=mask2)
+      image.paste(self.start_img, box=(delta_x * i, delta_y * i), mask=mask1)
+      image.paste(self.start_img, box=(-delta_x * i, -delta_y * i), mask=mask2)
       yield image
-    for i in range(self.duration//2, 0, -1):
+    for i in range(self.duration // 2, 0, -1):
       image = Image.new("RGBA", (self.start_img.width, self.start_img.height), color='#000')
 
-      image.paste(self.end_img, box=(delta_x*i, delta_y*i), mask=mask1)
-      image.paste(self.end_img, box=(-delta_x*i, -delta_y*i), mask=mask2)
+      image.paste(self.end_img, box=(delta_x * i, delta_y * i), mask=mask1)
+      image.paste(self.end_img, box=(-delta_x * i, -delta_y * i), mask=mask2)
       yield image
     yield self.end_img
+
+
+class BallTransition(Transition):
+
+  def __init__(self, start_img, end_img, framerate=30, duration=15):
+    self.duration = duration
+    super().__init__(start_img, end_img, framerate)
+
+  def get_transition_frames(self):
+    basketball_img = get_basketball_img(size=self.start_img.height)
+    basketball_offset = basketball_img.width // 2
+    ip = ImagePlacement(self.start_img.width, self.start_img.height)  #.with_h_offset(-basketball_offset)
+
+    delta_x = 1 / self.duration
+
+    for i in range(self.duration, -self.duration // 2, -1):
+      x = ip.h(delta_x * i)
+      image = Image.new("RGBA", (self.start_img.width, self.start_img.height), color='#000')
+      if 0 < x:
+        image.paste(self.start_img.crop((0, 0, x + basketball_offset, self.start_img.height)))
+      if x + basketball_offset < self.end_img.width:
+        image.paste(
+            self.end_img.crop((x + basketball_offset, 0, self.end_img.width, self.end_img.height)),
+            box=(x + basketball_offset, 0))
+
+      rot_basketball_img = basketball_img.rotate(-360 // self.duration * i)
+      image.paste(rot_basketball_img, box=(x, 0), mask=basketball_img)
+      yield image
+    yield self.end_img
+
+
+class PlayByPlayUpdateThread(threading.Thread):
+
+  def __init__(self, game, playbyplay):
+    super().__init__()
+    self.game = game
+    self.exitSignal = 0
+    self.playbyplay = playbyplay
+
+  def run(self):
+    while not self.exitSignal:
+      self.playbyplay = get_playbyplay_for_game(self.game, cache_override=True)
+      self.game = get_game_by_id(self.game['gameId'], cache_override=True)
+      time.sleep(1)
+    logging.debug('Thread for game %s exited.' % self.game['gameId'])
+
+  def stop(self):
+    self.exitSignal = 1
+
+  def __enter__(self):
+    self.start()
+    return self
+
+  def __exit__(self, *args, **kwargs):
+    self.stop()

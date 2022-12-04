@@ -9,7 +9,7 @@
 # You can list teams by their abbreviation, full name, short name (e.g. Clippers), city, or state
 # Duplicates will be ignored.
 # Example: FAVORITE_TEAMS = ["CHI", "Cleveland Cavaliers", "Pacers", "Milwaukee", "Michigan"]
-FAVORITE_TEAMS = ["Hornets", "Magic", "Knicks"]
+FAVORITE_TEAMS = []
 
 # Your timezone
 # See valid timezones at the botom of this file
@@ -35,6 +35,9 @@ SLEEP_DAY = 0
 # This will not work unless SLEEP_DAY is also set.
 # Example: WAKE_DAY = 6
 WAKE_DAY = 0
+
+# Whether the clock should count down (may be inaccurate) or only update when it recieves new data.
+CLOCK_COUNTDOWN = True
 
 ####################################################################################################
 

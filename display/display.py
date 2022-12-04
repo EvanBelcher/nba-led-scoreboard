@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from PIL import ImageTk
+from PIL import Image, ImageTk
 import logging
 import sys
 import time
@@ -140,7 +140,7 @@ class Display(object):
 
   def _debug_image(self, image, debug_label):
     # image.save('assets/testing/%d.png' % time.time())
-    big_img = image.resize((image.width * 10, image.height * 10))
+    big_img = image.resize((image.width * 10, image.height * 10), resample=Image.NONE)
     photo = ImageTk.PhotoImage(big_img)
     debug_label.config(image=photo)
     debug_label.image = photo  # keep a reference
